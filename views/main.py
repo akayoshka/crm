@@ -773,9 +773,19 @@ def view_operator(operator_id):
         user_id=operator.id
     ).order_by(Log.timestamp.desc()).limit(10).all()
 
-    # Get available drivers for assignment
-    available_drivers = Driver.query.filter_by(
-        company_id=current_user.manager.company_id
+    # Get operators managed by this manager
+    manager_operators = Operator.query.filter_by(manager_id=current_user.manager.id).all()
+    manager_operator_ids = [op.id for op in manager_operators]
+
+    # Get available drivers for assignment:
+    # 1. Drivers not assigned to any operator (operator_id is None)
+    # 2. Drivers assigned to operators managed by this manager
+    available_drivers = Driver.query.filter(
+        Driver.company_id == current_user.manager.company_id,
+        or_(
+            Driver.operator_id.is_(None),  # Not assigned to any operator
+            Driver.operator_id.in_(manager_operator_ids) if manager_operator_ids else False  # Assigned to this manager's operators
+        )
     ).all()
 
     # Get all operators for reassignment options
@@ -1080,6 +1090,27 @@ def manager_tasks():
     # Apply view filter
     if view == "my":
         task_query = task_query.filter_by(creator_id=current_user.id)
+    else:
+        # For team view, show only tasks created by users in manager's company
+        # Get user IDs from the company
+        company_user_ids = db.session.query(User.id).join(
+            CompanyOwner, User.id == CompanyOwner.id, full=True
+        ).join(
+            Manager, User.id == Manager.id, full=True
+        ).join(
+            Operator, User.id == Operator.id, full=True
+        ).join(
+            Driver, User.id == Driver.id, full=True
+        ).filter(
+            or_(
+                CompanyOwner.company_id == company_id,
+                Manager.company_id == company_id,
+                Operator.company_id == company_id,
+                Driver.company_id == company_id
+            )
+        ).all()
+        company_user_ids = [user_id[0] for user_id in company_user_ids]
+        task_query = task_query.filter(Task.creator_id.in_(company_user_ids))
 
     # Apply status filter
     if status:
@@ -1121,7 +1152,11 @@ def manager_tasks():
     tasks = task_query.paginate(page=page, per_page=10)
 
     # Get task statistics
-    all_tasks = Task.query.filter_by(company_id=company_id).all()
+    # Update task statistics to also filter by company users
+    all_tasks_query = Task.query.filter_by(company_id=company_id)
+    if view != "my":  # Use the same company users filter for statistics if not in "my" view
+        all_tasks_query = all_tasks_query.filter(Task.creator_id.in_(company_user_ids))
+    all_tasks = all_tasks_query.all()
 
     total_tasks = len(all_tasks)
     new_tasks = sum(1 for t in all_tasks if t.status == TaskStatus.NEW)

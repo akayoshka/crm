@@ -247,17 +247,17 @@ def company():
             companies = [Company.query.get(company_id)]
 
     # Get company statistics
-    # In a real application, this would query the database for actual stats
-    # Here we'll generate some sample data for demonstration
-
     # User counts by role
-    user_count = User.query.count()
     managers_count = Manager.query.filter_by(company_id=company_id).count() if company_id else 0
     operators_count = Operator.query.filter_by(company_id=company_id).count() if company_id else 0
     drivers_count = Driver.query.filter_by(company_id=company_id).count() if company_id else 0
 
-    # Calculate efficiency score (demo)
-    efficiency_score = random.randint(70, 95)
+    # For admin - all users, for company owner - only company employees
+    if current_user.role == UserRole.ADMIN:
+        user_count = User.query.count()
+    else:
+        # Sum of all employees in the company
+        user_count = managers_count + operators_count + drivers_count
 
     # Calculate average task completion time
     avg_completion_time = 0
@@ -277,38 +277,18 @@ def company():
 
         avg_completion_time = round(avg_time_query.scalar() or 0, 1)
 
-    # Generate sample department performance data
-    departments = [
-        {
-            'name': 'Logistics',
-            'total_tasks': random.randint(80, 120),
-            'completed_tasks': random.randint(60, 80),
-            'avg_time': round(random.uniform(2.0, 6.0), 1),
-            'color': 'bg-success',
-            'efficiency_score': random.randint(80, 95)
-        },
-        {
-            'name': 'Warehouse',
-            'total_tasks': random.randint(50, 90),
-            'completed_tasks': random.randint(40, 50),
-            'avg_time': round(random.uniform(1.5, 4.0), 1),
-            'color': 'bg-primary',
-            'efficiency_score': random.randint(75, 90)
-        },
-        {
-            'name': 'Delivery',
-            'total_tasks': random.randint(100, 150),
-            'completed_tasks': random.randint(90, 100),
-            'avg_time': round(random.uniform(3.0, 8.0), 1),
-            'color': 'bg-info',
-            'efficiency_score': random.randint(85, 98)
-        }
-    ]
+    # Get real task and route data for company efficiency score
+    if company_id:
+        # Get task statistics
+        task_query = Task.query.filter_by(company_id=company_id)
+        total_tasks = task_query.count()
+        completed_tasks = task_query.filter_by(status=TaskStatus.COMPLETED).count()
 
-    # Calculate completion rates
-    for dept in departments:
-        dept['completion_rate'] = round(
-            dept['completed_tasks'] / dept['total_tasks'] * 100 if dept['total_tasks'] > 0 else 0)
+        # Calculate efficiency based on completion rate and average completion time
+        completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+        efficiency_score = int(completion_rate)
+    else:
+        efficiency_score = 0
 
     # Combine all stats into a single object
     stats = {
@@ -326,7 +306,7 @@ def company():
         'statistics/company.html',
         title='Company Statistics',
         stats=stats,
-        departments=departments,
+        departments=[],  # Remove fake department data
         companies=companies,
         company_id=company_id,
         period=period,
@@ -580,10 +560,28 @@ def users():
                 )
             )
 
+    # If current user is manager, show only their operators and their drivers
+    if current_user.role == UserRole.MANAGER and current_user.manager:
+        # Get operators managed by this manager
+        managed_operator_ids = [op.id for op in Operator.query.filter_by(manager_id=current_user.manager.id).all()]
+
+        # Get drivers managed by these operators
+        managed_driver_ids = []
+        if managed_operator_ids:
+            managed_driver_ids = [d.id for d in Driver.query.filter(Driver.operator_id.in_(managed_operator_ids)).all()]
+
+        # Filter users to show only the manager, their operators and their drivers
+        users_query = users_query.filter(
+            or_(
+                User.id == current_user.id,  # The manager
+                User.id.in_(managed_operator_ids),  # Manager's operators
+                User.id.in_(managed_driver_ids)  # Drivers managed by operator
+            )
+        )
+
     # Filter by role
     if role_filter != 'all':
-        users_query = users_query.filter(User.role == UserRole(role_filter))
-
+        users_query = users_query.filter(User.role == UserRole(role_filter.upper()))
     # Get users
     users = users_query.all()
 

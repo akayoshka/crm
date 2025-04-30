@@ -6,7 +6,7 @@ from sqlalchemy import or_
 
 from app import db
 from forms import TaskForm, DocumentUploadForm, MessageForm
-from models import User, Task, TaskStatus, Route, Document, Message, UserRole, ActionType, Company
+from models import User, Task, TaskStatus, Route, Document, Message, UserRole, ActionType, Company, Operator
 from services import TaskService, MessageService
 from utils import role_required, company_access_required, log_action, save_document
 
@@ -136,26 +136,28 @@ def create_task():
         flash('You are not associated with a company.', 'danger')
         return redirect(url_for('main.index'))
 
-    # Get all drivers with the DRIVER role
-    drivers_query = User.query.filter_by(role=UserRole.DRIVER)
-
     # Get available drivers for assignment
+    drivers = []
+
     # For operators, only their drivers
     if current_user.role == UserRole.OPERATOR and current_user.operator:
         drivers = [
             (d.user.id, f"{d.user.first_name} {d.user.last_name}")
             for d in current_user.operator.drivers if d.user is not None
         ]
-    # For managers, all drivers in their company
+    # For managers, only drivers under their operators
     elif current_user.role == UserRole.MANAGER and current_user.manager:
-        drivers = []
-        driver_users = drivers_query.all()
-        for driver_user in driver_users:
-            if hasattr(driver_user, 'driver') and driver_user.driver and driver_user.driver.company_id == company_id:
-                drivers.append((driver_user.id, f"{driver_user.first_name} {driver_user.last_name}"))
+        # Get operators under this manager
+        operators = Operator.query.filter_by(manager_id=current_user.id).all()
+
+        # Get drivers from these operators
+        for operator in operators:
+            for driver in operator.drivers:
+                if driver.user:  # Make sure user exists
+                    drivers.append((driver.user.id, f"{driver.user.first_name} {driver.user.last_name}"))
     # For admins and company owners, all drivers in the company
     else:
-        drivers = []
+        drivers_query = User.query.filter_by(role=UserRole.DRIVER)
         driver_users = drivers_query.all()
         for driver_user in driver_users:
             if hasattr(driver_user, 'driver') and driver_user.driver and driver_user.driver.company_id == company_id:
@@ -167,7 +169,6 @@ def create_task():
 
     if form.validate_on_submit():
         try:
-            # Создаем задачу напрямую
             task = Task(
                 title=form.title.data,
                 description=form.description.data,
@@ -181,7 +182,7 @@ def create_task():
             )
 
             db.session.add(task)
-            db.session.commit()  # Важно: сначала сохраняем задачу, чтобы получить task.id
+            db.session.commit()
 
             # Handle document upload if provided
             if form.document.data:
@@ -200,11 +201,11 @@ def create_task():
                         uploader_id=current_user.id,
                         task_id=task.id,
                         company_id=task.company_id,
-                        document_category='task'  # Используем строковое значение
+                        document_category='task'
                     )
 
                     db.session.add(document)
-                    db.session.commit()  # Важно: сохраняем документ
+                    db.session.commit()
 
             log_action(ActionType.CREATE, f"Created task {task.title}", db)
             flash(f'Task "{task.title}" created successfully!', 'success')
@@ -229,6 +230,9 @@ def view_task(task_id):
         flash('You do not have permission to access this task.', 'danger')
         return redirect(url_for('tasks.list_tasks'))
 
+    # Check if user can edit this task
+    can_edit = _can_edit_task(task)
+
     # Forms for document upload and messaging
     upload_form = DocumentUploadForm()
     message_form = MessageForm()
@@ -244,7 +248,8 @@ def view_task(task_id):
         task=task,
         upload_form=upload_form,
         message_form=message_form,
-        now=now
+        now=now,
+        can_edit=can_edit  # Pass this parameter to template
     )
 
 
