@@ -180,6 +180,11 @@ def create_route():
                     # If not valid JSON, keep as None
                     pass
 
+            # Convert task_id=0 to None (Fix for foreign key constraint)
+            processed_task_id = None
+            if hasattr(form, 'task_id') and form.task_id.data and form.task_id.data != 0:
+                processed_task_id = form.task_id.data
+
             # Create route directly instead of using RouteService
             route = Route(
                 start_point=form.start_point.data,
@@ -189,7 +194,7 @@ def create_route():
                 start_time=form.start_time.data,
                 status=RouteStatus.PLANNED,
                 driver_id=form.driver_id.data,
-                task_id=form.task_id.data,
+                task_id=processed_task_id,  # Using processed task_id instead of the raw form value
                 company_id=company_id,
                 waypoints=waypoints,
             )
@@ -197,8 +202,8 @@ def create_route():
             db.session.add(route)
 
             # Update task status if task is assigned
-            if hasattr(form, 'task_id') and form.task_id.data:
-                task = Task.query.get(form.task_id.data)
+            if processed_task_id:
+                task = Task.query.get(processed_task_id)
                 if task and task.status == TaskStatus.NEW:
                     task.status = TaskStatus.IN_PROGRESS
 

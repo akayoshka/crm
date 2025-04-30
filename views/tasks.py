@@ -38,6 +38,10 @@ def list_tasks():
     """
     List tasks with filters based on user role
     """
+    # If the user is a driver, redirect to the driver-specific tasks page
+    if current_user.role == UserRole.DRIVER:
+        return redirect(url_for('driver.tasks'))
+
     page = request.args.get('page', 1, type=int)
     status = request.args.get('status', None)
     search_term = request.args.get('search', '')
@@ -51,8 +55,6 @@ def list_tasks():
         company_id = current_user.manager.company_id
     elif current_user.role == UserRole.OPERATOR and current_user.operator:
         company_id = current_user.operator.company_id
-    elif current_user.role == UserRole.DRIVER and current_user.driver:
-        company_id = current_user.driver.company_id
 
     # Admin can see all tasks if no company filter
     if current_user.role == UserRole.ADMIN and not company_id:
@@ -62,10 +64,7 @@ def list_tasks():
     creator_id = None
     assignee_id = None
 
-    if current_user.role == UserRole.DRIVER:
-        # Drivers can only see tasks assigned to them
-        assignee_id = current_user.id
-    elif current_user.role == UserRole.OPERATOR:
+    if current_user.role == UserRole.OPERATOR:
         # Operators see tasks they created or that are assigned to their drivers
         if request.args.get('view', '') != 'all':
             creator_id = current_user.id
@@ -228,6 +227,10 @@ def view_task(task_id):
     # Check if user has access to this task
     if not _can_access_task(task):
         flash('You do not have permission to access this task.', 'danger')
+
+        # If the user is a driver, redirect to their task page instead of the main task list
+        if current_user.role == UserRole.DRIVER:
+            return redirect(url_for('driver.tasks'))
         return redirect(url_for('tasks.list_tasks'))
 
     # Check if user can edit this task

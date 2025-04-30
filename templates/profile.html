@@ -85,22 +85,6 @@
                             <td>{{ current_user.email }}</td>
                         </tr>
                         <tr>
-                            <th>Role</th>
-                            <td>
-                                {% if current_user.role.value == 'admin' %}
-                                    Administrator
-                                {% elif current_user.role.value == 'company_owner' %}
-                                    Company Owner
-                                {% elif current_user.role.value == 'manager' %}
-                                    Manager
-                                {% elif current_user.role.value == 'operator' %}
-                                    Operator
-                                {% elif current_user.role.value == 'driver' %}
-                                    Driver
-                                {% endif %}
-                            </td>
-                        </tr>
-                        <tr>
                             <th>Account Status</th>
                             <td>
                                 {% if current_user.is_active %}
