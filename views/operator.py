@@ -1,7 +1,10 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from typing import Optional
+
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from sqlalchemy import func, or_, and_
+from wtforms import SelectField
 
 from app import db
 from models import (
@@ -9,7 +12,9 @@ from models import (
     Document, UserRole, ActionType, Log, Company
 )
 from forms import DocumentUploadForm, TaskForm, MessageForm
-from utils import role_required, log_action
+from utils import role_required, log_action, save_document
+from wtforms.validators import Optional
+
 from services import TaskService, RouteService
 
 # Create blueprint
@@ -148,6 +153,7 @@ def tasks():
 
     page = request.args.get('page', 1, type=int)
     status = request.args.get('status', None)
+    show_all = request.args.get('show_all', 'false').lower() == 'true'
     driver_id = request.args.get('driver_id', None, type=int)
     sort = request.args.get('sort', 'deadline_asc')
     search_term = request.args.get('search', '')
@@ -163,6 +169,9 @@ def tasks():
         except ValueError:
             # Invalid status, ignore filter
             pass
+    elif not show_all:
+        # By default, exclude completed tasks
+        task_query = task_query.filter(Task.status != TaskStatus.COMPLETED)
 
     # Apply driver filter
     if driver_id:
@@ -230,7 +239,8 @@ def tasks():
         drivers=drivers,
         task_stats=task_stats,
         upcoming_tasks=upcoming_tasks,
-        now=datetime.utcnow()
+        now=datetime.utcnow(),
+        show_all=show_all
     )
 
 
@@ -1314,7 +1324,8 @@ def view_driver(driver_id):
         route_completion_rate=round(route_completion_rate),
         total_distance=round(total_distance, 1),
         on_time_percentage=on_time_percentage,
-        activity_logs=activity_logs
+        activity_logs=activity_logs,
+        now = datetime.utcnow(),
     )
 
 
@@ -1498,4 +1509,96 @@ Requested by: {current_user.first_name} {current_user.last_name}
     return render_template(
         'operator/request_driver.html',
         title='Request New Driver'
+    )
+
+
+@operator.route('/upload_document', methods=['GET', 'POST'])
+@login_required
+@role_required(UserRole.OPERATOR.value)
+def upload_document():
+    """
+    Upload document page for operators
+    """
+    if not current_user.operator or not current_user.operator.company_id:
+        flash('You are not associated with a company.', 'danger')
+        return redirect(url_for('main.index'))
+
+    # Create form
+    form = DocumentUploadForm()
+
+    # Get task ID from query parameter
+    task_id = request.args.get('task_id', None, type=int)
+
+    # Get company ID
+    company_id = current_user.operator.company_id
+
+    # Populate task choices
+    tasks = Task.query.filter_by(
+        creator_id=current_user.id,
+        company_id=company_id
+    ).all()
+
+    # Set task choices
+    task_choices = [(0, 'General Document (No Task)')]
+    task_choices.extend([(t.id, f'{t.id} - {t.title}') for t in tasks])
+
+    # Create a custom form field for task selection
+    class DocumentUploadFormWithTask(DocumentUploadForm):
+        task_id = SelectField('Associated Task', choices=task_choices, coerce=int, validators=[Optional()])
+
+    # Use the extended form
+    form = DocumentUploadFormWithTask()
+
+    # Set selected task if provided
+    if task_id and task_id in [t[0] for t in task_choices]:
+        form.task_id.data = task_id
+
+    if form.validate_on_submit():
+        try:
+            # Process file upload
+            file = form.document.data
+
+            # Determine task_id (if any)
+            selected_task_id = form.task_id.data if form.task_id.data != 0 else None
+
+            # Save document file and get file info
+            file_path, file_type, file_size = save_document(file, selected_task_id, company_id)
+
+            if not file_path:
+                flash('Error saving document. Please check file type and size.', 'danger')
+                return redirect(url_for('operator.upload_document'))
+
+            # Create document record
+            document = Document(
+                title=form.title.data,
+                file_path=file_path,
+                file_type=file_type,
+                size=file_size,
+                uploaded_at=datetime.utcnow(),
+                uploader_id=current_user.id,
+                task_id=selected_task_id,
+                company_id=company_id,
+                document_category='other'  # Default category
+            )
+
+            db.session.add(document)
+            db.session.commit()
+
+            log_action(ActionType.UPLOAD, f"Uploaded document: {form.title.data}", db)
+            flash('Document uploaded successfully!', 'success')
+
+            # Redirect back to document list
+            return redirect(url_for('operator.documents'))
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error uploading document: {str(e)}")
+            flash(f'Error uploading document: {str(e)}', 'danger')
+
+    log_action(ActionType.VIEW, "Viewed document upload page", db)
+
+    return render_template(
+        'operator/upload_document.html',
+        title='Upload Document',
+        form=form
     )

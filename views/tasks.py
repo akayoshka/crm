@@ -461,19 +461,25 @@ def _can_edit_task(task):
     """
     Check if current user can edit a task
     """
-    # Admin, company owner, and creator can edit
+    # Admin can edit any task
     if current_user.role == UserRole.ADMIN:
         return True
 
+    # Company owner can edit any task in their company
     if current_user.role == UserRole.COMPANY_OWNER and current_user.company_owner and task.company_id == current_user.company_owner.company_id:
         return True
 
+    # Creator can edit their own tasks
     if task.creator_id == current_user.id:
         return True
 
-    # Manager can edit any task in their company
+    # Manager can edit tasks created by them or by operators assigned to them
     if current_user.role == UserRole.MANAGER and current_user.manager and task.company_id == current_user.manager.company_id:
-        return True
+        # Check if task creator is an operator assigned to this manager
+        if task.creator and task.creator.role == UserRole.OPERATOR and task.creator.operator:
+            if task.creator.operator.manager_id == current_user.id:
+                return True
+        return False
 
     return False
 

@@ -659,6 +659,9 @@ def driver_routes():
         flash('This page is only accessible to drivers.', "DANGER")
         return redirect(url_for('main.index'))
 
+    # Get view parameter for filtering
+    view = request.args.get("view", "all")
+
     # Get driver's routes statistics
     stats = _get_driver_stats(current_user.driver.id)
 
@@ -681,19 +684,32 @@ def driver_routes():
     ).order_by(Route.start_time).offset(1).limit(5).all()
 
     # Get completed routes
-    completed_routes = Route.query.filter_by(
-        driver_id=current_user.driver.id,
-        status=RouteStatus.COMPLETED
-    ).order_by(Route.end_time.desc()).limit(5).all()
+    if view == "completed":
+        # Show more completed routes when on the completed tab
+        completed_routes = Route.query.filter_by(
+            driver_id=current_user.driver.id,
+            status=RouteStatus.COMPLETED
+        ).order_by(Route.end_time.desc()).all()
+    else:
+        # Only show a few completed routes on other views
+        completed_routes = Route.query.filter_by(
+            driver_id=current_user.driver.id,
+            status=RouteStatus.COMPLETED
+        ).order_by(Route.end_time.desc()).limit(5).all()
+
+    # If view is "active", hide completed routes
+    if view == "active":
+        completed_routes = []
 
     log_action(ActionType.VIEW, "Viewed driver routes", db)
 
     return render_template(
-        'routes/routes_dashboard.html',
+        'driver/routes.html',  # Use the new template
         title='My Routes',
         active_route=active_route,
         next_route=next_route,
         upcoming_routes=upcoming_routes,
         completed_routes=completed_routes,
-        stats=stats
+        stats=stats,
+        view=view  # Pass the view parameter to the template
     )

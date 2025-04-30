@@ -14,7 +14,7 @@
                 <a href="{{ url_for('driver.tasks') }}" class="list-group-item list-group-item-action active">
                     <i class="fas fa-tasks"></i> My Tasks
                 </a>
-                <a href="{{ url_for('driver.routes_dashboard') }}" class="list-group-item list-group-item-action">
+                <a href="{{ url_for('driver.driver_routes') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-route"></i> My Routes
                 </a>
                 <a href="{{ url_for('messages.inbox') }}" class="list-group-item list-group-item-action">
@@ -84,7 +84,7 @@
                         {% if view == 'active' %}
                         Active Tasks
                         {% else %}
-                        New & In Progress Tasks
+                        In Progress Tasks
                         {% endif %}
                     </h5>
 
@@ -95,11 +95,9 @@
                             <div class="d-flex w-100 justify-content-between">
                                 <h5 class="mb-1">{{ task.title }}</h5>
                                 <small>
-                                    {% if task.status.value == 'new' %}
-                                        <span class="badge bg-info">New</span>
-                                    {% elif task.status.value == 'in_progress' %}
+                                    {% if task.status.value == 'IN_PROGRESS' %}
                                         <span class="badge bg-primary">In Progress</span>
-                                    {% elif task.status.value == 'on_hold' %}
+                                    {% elif task.status.value == 'ON_HOLD' %}
                                         <span class="badge bg-warning">On Hold</span>
                                     {% endif %}
                                 </small>
@@ -127,6 +125,11 @@
                                     <a href="{{ url_for('tasks.view_task', task_id=task.id) }}" class="btn btn-primary btn-sm">
                                         <i class="fas fa-eye"></i> View Details
                                     </a>
+                                    <form action="{{ url_for('driver.complete_task', task_id=task.id) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-success btn-sm">
+                                            <i class="fas fa-check"></i> Complete
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
                         </div>

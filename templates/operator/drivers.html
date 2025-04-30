@@ -28,7 +28,7 @@
                 </a>
             </div>
         </div>
-        
+
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0">Driver Filters</h5>
@@ -39,28 +39,28 @@
                         <label class="form-label">Status</label>
                         <div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="status" id="status_all" value="" 
+                                <input class="form-check-input" type="radio" name="status" id="status_all" value=""
                                        {% if not status %}checked{% endif %}>
                                 <label class="form-check-label" for="status_all">All</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="status" id="status_active" value="active" 
+                                <input class="form-check-input" type="radio" name="status" id="status_active" value="active"
                                        {% if status == 'active' %}checked{% endif %}>
                                 <label class="form-check-label" for="status_active">Active</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="status" id="status_idle" value="idle" 
+                                <input class="form-check-input" type="radio" name="status" id="status_idle" value="idle"
                                        {% if status == 'idle' %}checked{% endif %}>
                                 <label class="form-check-label" for="status_idle">Idle</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="status" id="status_on_route" value="on_route" 
+                                <input class="form-check-input" type="radio" name="status" id="status_on_route" value="on_route"
                                        {% if status == 'on_route' %}checked{% endif %}>
                                 <label class="form-check-label" for="status_on_route">On Route</label>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label">Sort By</label>
                         <select class="form-select" name="sort">
@@ -70,12 +70,12 @@
                             <option value="last_active_desc" {% if sort == 'last_active_desc' %}selected{% endif %}>Recently Active</option>
                         </select>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label">Search</label>
                         <input type="text" class="form-control" name="search" value="{{ search_term }}" placeholder="Search drivers...">
                     </div>
-                    
+
                     <button type="submit" class="btn btn-primary w-100">
                         <i class="fas fa-filter"></i> Apply Filters
                     </button>
@@ -83,7 +83,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-9">
         <div class="card mb-4">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">

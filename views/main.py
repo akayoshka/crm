@@ -709,7 +709,8 @@ def manager_dashboard():
         active_tasks=active_tasks,
         active_routes=active_routes,
         team_performance=team_performance,
-        recent_tasks=recent_tasks
+        recent_tasks=recent_tasks,
+        now = datetime.utcnow()
     )
 
 
