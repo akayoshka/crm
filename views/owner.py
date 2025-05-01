@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from sqlalchemy import func, or_, and_
+from wtforms import SelectField
+
 from models import Message, ActionType
 
 from app import db
@@ -10,7 +12,7 @@ from models import (
     Task, TaskStatus, Route, RouteStatus, ActionType, Log
 )
 from utils import role_required, log_action
-from forms import CompanyForm, UserForm, EditUserForm
+from forms import CompanyForm, UserForm, EditUserForm, OperatorForm
 
 owner = Blueprint('owner', __name__, url_prefix='/owner')
 
@@ -996,3 +998,348 @@ def view_operator(operator_id):
         unread_messages_count=unread_messages_count,
         operator_requests_count=operator_requests_count
     )
+
+@owner.route('/dashboard/owner/operators')
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def operators():
+    """
+    Operators list for company owner
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+    page = request.args.get("page", 1, type=int)
+
+    # Get all operators for this company
+    operators_query = Operator.query.filter_by(company_id=company_id)
+
+    # Order by name
+    operators_query = operators_query.join(User, Operator.id == User.id).order_by(User.first_name, User.last_name)
+
+    # Paginate results
+    operators = operators_query.paginate(page=page, per_page=10)
+
+    # Calculate performance metrics for each operator
+    for operator in operators.items:
+        # Get tasks created by this operator
+        tasks = Task.query.filter_by(creator_id=operator.id, company_id=company_id).all()
+        total_tasks = len(tasks)
+
+        # Calculate completed tasks
+        completed_tasks = sum(1 for t in tasks if t.status == TaskStatus.COMPLETED)
+
+        # Calculate active tasks (in progress and new)
+        active_tasks = sum(1 for t in tasks if t.status in [TaskStatus.IN_PROGRESS, TaskStatus.NEW])
+
+        # Calculate completion rate
+        completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+
+        # Get drivers managed by this operator
+        drivers_count = Driver.query.filter_by(operator_id=operator.id).count()
+
+        # Calculate routes under operator's drivers
+        driver_ids = [d.id for d in Driver.query.filter_by(operator_id=operator.id).all()]
+        routes = []
+        if driver_ids:
+            routes = Route.query.filter(Route.driver_id.in_(driver_ids)).all()
+
+        # Calculate route metrics
+        total_routes = len(routes)
+        completed_routes = sum(1 for r in routes if r.status == RouteStatus.COMPLETED)
+
+        # Calculate on-time delivery rate
+        on_time_deliveries = 0
+        total_completed_routes = 0
+
+        for route in routes:
+            if route.status == RouteStatus.COMPLETED and route.end_time and route.start_time:
+                total_completed_routes += 1
+                # Add 30 minutes buffer for on-time calculation
+                from datetime import timedelta
+                buffer = timedelta(minutes=30)
+
+                if route.estimated_time:
+                    planned_end_time = route.start_time + timedelta(minutes=route.estimated_time)
+                    if route.end_time <= (planned_end_time + buffer):
+                        on_time_deliveries += 1
+
+        on_time_rate = (on_time_deliveries / total_completed_routes * 100) if total_completed_routes > 0 else 0
+
+        # Calculate overall performance score
+        performance_factors = []
+
+        if total_tasks > 0:
+            performance_factors.append(completion_rate)
+
+        if total_completed_routes > 0:
+            performance_factors.append(on_time_rate)
+
+        # Add team size factor
+        team_efficiency = min(drivers_count * 5, 20) if drivers_count > 0 else 0
+        if team_efficiency > 0:
+            performance_factors.append(team_efficiency)
+
+        # Calculate overall score
+        performance_score = int(sum(performance_factors) / len(performance_factors)) if performance_factors else 0
+
+        # Attach metrics to operator object
+        operator.active_tasks = active_tasks
+        operator.completed_tasks = completed_tasks
+        operator.total_tasks = total_tasks
+        operator.completion_rate = round(completion_rate, 1)
+        operator.performance_score = performance_score
+        operator.on_time_rate = round(on_time_rate, 1)
+
+    # Get unread messages count
+    unread_messages_count = Message.query.filter_by(
+        recipient_id=current_user.id,
+        is_read=False
+    ).count()
+
+    # Get operator request count
+    operator_requests_count = Message.query.filter(
+        Message.recipient_id == current_user.id,
+        Message.company_id == company_id,
+        Message.content.like('%requests a new operator account%'),
+        Message.is_read == False
+    ).count()
+
+    log_action(ActionType.VIEW, "Viewed operators list", db)
+
+    return render_template(
+        'owner/operators.html',
+        title='Company Operators',
+        operators=operators,
+        unread_messages_count=unread_messages_count,
+        operator_requests_count=operator_requests_count
+    )
+
+
+@owner.route('/dashboard/owner/operators/add', methods=['GET', 'POST'])
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def add_operator():
+    """
+    Add a new operator
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Create form
+    form = OperatorForm()
+
+    # Get available managers for this company
+    managers = Manager.query.filter_by(company_id=company_id).all()
+    manager_choices = [(m.id, f"{m.user.first_name} {m.user.last_name}") for m in managers]
+    manager_choices.insert(0, (0, "-- Select Manager --"))
+
+    # Set manager choices in the form
+    form.manager_id.choices = manager_choices
+
+    if form.validate_on_submit():
+        try:
+            # Create user with operator role
+            user = User(
+                username=form.username.data,
+                email=form.email.data,
+                first_name=form.first_name.data,
+                last_name=form.last_name.data,
+                phone=form.phone.data,
+                role=UserRole.OPERATOR,
+                is_active=form.is_active.data
+            )
+
+            # Set password
+            user.set_password(form.password.data)
+
+            # Handle profile image if provided
+            if form.profile_image.data:
+                from utils import save_profile_image
+                user.profile_image = save_profile_image(form.profile_image.data)
+
+            db.session.add(user)
+            db.session.flush()  # Get user ID
+
+            # Create operator relationship with company and manager
+            manager_id = form.manager_id.data if form.manager_id.data != 0 else None
+            operator = Operator(id=user.id, company_id=company_id, manager_id=manager_id)
+            db.session.add(operator)
+
+            db.session.commit()
+            log_action(ActionType.CREATE, f"Created operator {user.username}", db)
+
+            flash(f'Operator {user.first_name} {user.last_name} created successfully!', "success")
+            return redirect(url_for('owner.operators'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating operator: {str(e)}', "danger")
+
+    # Get unread messages count
+    unread_messages_count = Message.query.filter_by(
+        recipient_id=current_user.id,
+        is_read=False
+    ).count()
+
+    # Get operator request count
+    operator_requests_count = Message.query.filter(
+        Message.recipient_id == current_user.id,
+        Message.company_id == company_id,
+        Message.content.like('%requests a new operator account%'),
+        Message.is_read == False
+    ).count()
+
+    return render_template(
+        'owner/add_operator.html',
+        title='Add New Operator',
+        form=form,
+        UserRole=UserRole,
+        unread_messages_count=unread_messages_count,
+        operator_requests_count=operator_requests_count
+    )
+
+@owner.route('/dashboard/owner/operators/<int:operator_id>/edit', methods=['GET', 'POST'])
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def edit_operator(operator_id):
+    """
+    Edit operator details
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Get operator
+    operator = Operator.query.get_or_404(operator_id)
+
+    # Ensure operator belongs to owner's company
+    if operator.company_id != company_id:
+        flash('You do not have permission to edit this operator.', "danger")
+        return redirect(url_for('owner.operators'))
+
+    # Get available managers for this company
+    managers = Manager.query.filter_by(company_id=company_id).all()
+    manager_choices = [(m.id, f"{m.user.first_name} {m.user.last_name}") for m in managers]
+    manager_choices.insert(0, (0, "-- Select Manager --"))
+
+    # Create form
+    form = EditUserForm(
+        original_username=operator.user.username,
+        original_email=operator.user.email
+    )
+
+    # Add manager selection field
+    if not hasattr(form, 'manager_id'):
+        form.manager_id = SelectField('Manager', choices=manager_choices, coerce=int)
+    else:
+        form.manager_id.choices = manager_choices
+
+    if request.method == 'GET':
+        form.username.data = operator.user.username
+        form.email.data = operator.user.email
+        form.first_name.data = operator.user.first_name
+        form.last_name.data = operator.user.last_name
+        form.phone.data = operator.user.phone
+        form.is_active.data = operator.user.is_active
+        form.manager_id.data = operator.manager_id if operator.manager_id else 0
+
+    if form.validate_on_submit():
+        try:
+            # Update user details
+            operator.user.username = form.username.data
+            operator.user.email = form.email.data
+            operator.user.first_name = form.first_name.data
+            operator.user.last_name = form.last_name.data
+            operator.user.phone = form.phone.data
+            operator.user.is_active = form.is_active.data
+
+            # Update manager assignment
+            manager_id = form.manager_id.data if form.manager_id.data != 0 else None
+            operator.manager_id = manager_id
+
+            # Handle profile image if provided
+            if form.profile_image.data:
+                from utils import save_profile_image
+                operator.user.profile_image = save_profile_image(form.profile_image.data)
+
+            db.session.commit()
+            log_action(ActionType.UPDATE, f"Updated operator {operator.user.username}", db)
+
+            flash(f'Operator {operator.user.first_name} {operator.user.last_name} updated successfully!', "success")
+            return redirect(url_for('owner.view_operator', operator_id=operator_id))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating operator: {str(e)}', "danger")
+
+    # Get unread messages count
+    unread_messages_count = Message.query.filter_by(
+        recipient_id=current_user.id,
+        is_read=False
+    ).count()
+
+    # Get operator request count
+    operator_requests_count = Message.query.filter(
+        Message.recipient_id == current_user.id,
+        Message.company_id == company_id,
+        Message.content.like('%requests a new operator account%'),
+        Message.is_read == False
+    ).count()
+
+    return render_template(
+        'owner/edit_operator.html',
+        title='Edit Operator',
+        form=form,
+        operator=operator,
+        unread_messages_count=unread_messages_count,
+        operator_requests_count=operator_requests_count
+    )
+
+@owner.route('/dashboard/owner/operators/<int:operator_id>/delete', methods=['POST'])
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def delete_operator(operator_id):
+    """
+    Delete an operator
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Get operator
+    operator = Operator.query.get_or_404(operator_id)
+
+    # Ensure operator belongs to owner's company
+    if operator.company_id != company_id:
+        flash('You do not have permission to delete this operator.', "danger")
+        return redirect(url_for('owner.operators'))
+
+    # Check if operator has drivers
+    if operator.drivers:
+        flash('Cannot delete operator with assigned drivers. Please reassign drivers first.', "danger")
+        return redirect(url_for('owner.view_operator', operator_id=operator_id))
+
+    try:
+        # Get user for log
+        username = operator.user.username
+        user_id = operator.user.id
+
+        # Delete the operator (and user cascade)
+        db.session.delete(operator.user)
+        db.session.commit()
+
+        log_action(ActionType.DELETE, f"Deleted operator {username}", db)
+        flash(f'Operator {username} deleted successfully!', "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting operator: {str(e)}', "danger")
+
+    return redirect(url_for('owner.operators'))

@@ -295,3 +295,19 @@ class DocumentSearchForm(FlaskForm):
     uploader_id = SelectField('Uploaded By', coerce=int, validators=[Optional()], choices=[])
     company_id = SelectField('Company', coerce=int, validators=[Optional()], choices=[])
     submit = SubmitField('Search')
+
+
+class OperatorForm(UserForm):
+    """
+    Form for creating or editing an operator
+    """
+    manager_id = SelectField('Manager', coerce=int, validators=[Optional()],
+                             render_kw={"class": "form-select"})
+
+    def __init__(self, *args, **kwargs):
+        super(OperatorForm, self).__init__(*args, **kwargs)
+        self.role.data = UserRole.OPERATOR.value
+
+        # Set default choice for manager_id
+        if not self.manager_id.choices:
+            self.manager_id.choices = [(0, "-- Select Manager --")]
