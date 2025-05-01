@@ -96,33 +96,15 @@
                             </div>
                         </div>
                         <div class="col-md-6">
-                            {% if not operator %}
-                                <div class="mb-3">
-                                    {{ form.password.label(class="form-label") }}
-                                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
-                                    {% for error in form.password.errors %}
-                                        <div class="invalid-feedback">{{ error }}</div>
-                                    {% endfor %}
-                                    <small class="form-text text-muted">Password must be at least 8 characters long.</small>
-                                </div>
-                                <div class="mb-3">
-                                    {{ form.password2.label(class="form-label") }}
-                                    {{ form.password2(class="form-control" + (" is-invalid" if form.password2.errors else "")) }}
-                                    {% for error in form.password2.errors %}
-                                        <div class="invalid-feedback">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
+                            <div class="mb-3">
+                                {{ form.manager_id.label(class="form-label") }}
+                                {{ form.manager_id(class="form-select" + (" is-invalid" if form.manager_id.errors else "")) }}
+                                {% for error in form.manager_id.errors %}
+                                    <div class="invalid-feedback">{{ error }}</div>
+                                {% endfor %}
+                                <small class="form-text text-muted">Select the manager this operator will report to.</small>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        {{ form.manager_id.label(class="form-label") }}
-                        {{ form.manager_id(class="form-select" + (" is-invalid" if form.manager_id.errors else "")) }}
-                        {% for error in form.manager_id.errors %}
-                            <div class="invalid-feedback">{{ error }}</div>
-                        {% endfor %}
-                        <small class="form-text text-muted">Select the manager this operator will report to.</small>
                     </div>
                     
                     <div class="mb-3">

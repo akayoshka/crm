@@ -311,3 +311,16 @@ class OperatorForm(UserForm):
         # Set default choice for manager_id
         if not self.manager_id.choices:
             self.manager_id.choices = [(0, "-- Select Manager --")]
+
+
+class OperatorEditForm(EditUserForm):
+    """
+    Form for editing operator users
+    """
+    manager_id = SelectField('Manager', coerce=int, validators=[Optional()],
+                             render_kw={"class": "form-select"})
+
+    def __init__(self, *args, **kwargs):
+        super(OperatorEditForm, self).__init__(*args, **kwargs)
+        # Default empty choices, will be set in the route
+        self.manager_id.choices = [(0, "-- Select Manager --")]

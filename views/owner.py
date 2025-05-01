@@ -12,7 +12,7 @@ from models import (
     Task, TaskStatus, Route, RouteStatus, ActionType, Log
 )
 from utils import role_required, log_action
-from forms import CompanyForm, UserForm, EditUserForm, OperatorForm
+from forms import CompanyForm, UserForm, EditUserForm, OperatorForm, OperatorEditForm
 
 owner = Blueprint('owner', __name__, url_prefix='/owner')
 
@@ -1203,12 +1203,13 @@ def add_operator():
         operator_requests_count=operator_requests_count
     )
 
+
 @owner.route('/dashboard/owner/operators/<int:operator_id>/edit', methods=['GET', 'POST'])
 @login_required
 @role_required(UserRole.COMPANY_OWNER.value)
 def edit_operator(operator_id):
     """
-    Edit operator details
+    Edit operator details using enhanced EditUserForm
     """
     if not current_user.company_owner or not current_user.company_owner.company_id:
         flash('You are not associated with a company.', "danger")
@@ -1235,11 +1236,8 @@ def edit_operator(operator_id):
         original_email=operator.user.email
     )
 
-    # Add manager selection field
-    if not hasattr(form, 'manager_id'):
-        form.manager_id = SelectField('Manager', choices=manager_choices, coerce=int)
-    else:
-        form.manager_id.choices = manager_choices
+    # Set manager choices
+    form.manager_id.choices = manager_choices
 
     if request.method == 'GET':
         form.username.data = operator.user.username
@@ -1261,8 +1259,8 @@ def edit_operator(operator_id):
             operator.user.is_active = form.is_active.data
 
             # Update manager assignment
-            manager_id = form.manager_id.data if form.manager_id.data != 0 else None
-            operator.manager_id = manager_id
+            manager_id = form.manager_id.data
+            operator.manager_id = manager_id if manager_id != 0 else None
 
             # Handle profile image if provided
             if form.profile_image.data:
