@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+import traceback
+
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from sqlalchemy import func, or_, and_
@@ -1209,7 +1211,7 @@ def add_operator():
 @role_required(UserRole.COMPANY_OWNER.value)
 def edit_operator(operator_id):
     """
-    Edit operator details using enhanced EditUserForm
+    Edit operator details
     """
     if not current_user.company_owner or not current_user.company_owner.company_id:
         flash('You are not associated with a company.', "danger")
@@ -1227,18 +1229,23 @@ def edit_operator(operator_id):
 
     # Get available managers for this company
     managers = Manager.query.filter_by(company_id=company_id).all()
-    manager_choices = [(m.id, f"{m.user.first_name} {m.user.last_name}") for m in managers]
-    manager_choices.insert(0, (0, "-- Select Manager --"))
+    manager_choices = [(str(m.id), f"{m.user.first_name} {m.user.last_name}") for m in managers]
+    manager_choices.insert(0, ("0", "-- Select Manager --"))
 
-    # Create form
+    # Create form (exclude validators for role field)
     form = EditUserForm(
         original_username=operator.user.username,
         original_email=operator.user.email
     )
 
-    # Set manager choices
-    form.manager_id.choices = manager_choices
+    # Remove role field from form validation by setting it to not required
+    # And populate its choices with the fixed value
+    if hasattr(form, 'role'):
+        form.role.validators = []
+        form.role.choices = [(UserRole.OPERATOR.value, 'Operator')]
+        form.role.data = UserRole.OPERATOR.value
 
+    # Populate form with current values on GET
     if request.method == 'GET':
         form.username.data = operator.user.username
         form.email.data = operator.user.email
@@ -1246,43 +1253,84 @@ def edit_operator(operator_id):
         form.last_name.data = operator.user.last_name
         form.phone.data = operator.user.phone
         form.is_active.data = operator.user.is_active
-        form.manager_id.data = operator.manager_id if operator.manager_id else 0
 
-    if form.validate_on_submit():
-        try:
-            # Update user details
-            operator.user.username = form.username.data
-            operator.user.email = form.email.data
-            operator.user.first_name = form.first_name.data
-            operator.user.last_name = form.last_name.data
-            operator.user.phone = form.phone.data
-            operator.user.is_active = form.is_active.data
+    # Process form submission
+    if request.method == 'POST':
+        current_app.logger.info(f"Form submitted: {request.form}")
+        current_app.logger.info(f"manager_id from form: {request.form.get('manager_id')}")
 
-            # Update manager assignment
-            manager_id = form.manager_id.data
-            operator.manager_id = manager_id if manager_id != 0 else None
+        # Force role to be valid to avoid validation errors
+        if hasattr(form, 'role'):
+            form.role.data = UserRole.OPERATOR.value
 
-            # Handle profile image if provided
-            if form.profile_image.data:
-                from utils import save_profile_image
-                operator.user.profile_image = save_profile_image(form.profile_image.data)
+        if form.validate_on_submit():
+            try:
+                # Update user fields from form
+                operator.user.username = form.username.data
+                operator.user.email = form.email.data
+                operator.user.first_name = form.first_name.data
+                operator.user.last_name = form.last_name.data
+                operator.user.phone = form.phone.data
+                operator.user.is_active = form.is_active.data
 
-            db.session.commit()
-            log_action(ActionType.UPDATE, f"Updated operator {operator.user.username}", db)
+                # Handle manager_id separately
+                manager_id_str = request.form.get('manager_id', '0')
+                current_app.logger.info(f"Processing manager_id: {manager_id_str}")
 
-            flash(f'Operator {operator.user.first_name} {operator.user.last_name} updated successfully!', "success")
-            return redirect(url_for('owner.view_operator', operator_id=operator_id))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error updating operator: {str(e)}', "danger")
+                if manager_id_str == '0':
+                    operator.manager_id = None
+                    current_app.logger.info("Setting manager_id to None")
+                else:
+                    try:
+                        manager_id = int(manager_id_str)
+                        # Verify that this manager exists and belongs to the same company
+                        manager = Manager.query.filter_by(id=manager_id, company_id=company_id).first()
+                        if manager:
+                            operator.manager_id = manager_id
+                            current_app.logger.info(f"Setting manager_id to {manager_id}")
+                        else:
+                            operator.manager_id = None
+                            current_app.logger.warning(f"Manager {manager_id} not found or not in same company")
+                    except (ValueError, TypeError) as e:
+                        operator.manager_id = None
+                        current_app.logger.error(f"Error converting manager_id: {str(e)}")
 
-    # Get unread messages count
+                # Handle profile image if provided
+                if form.profile_image.data:
+                    current_app.logger.info("Processing profile image")
+                    from utils import save_profile_image
+                    profile_image = save_profile_image(form.profile_image.data)
+                    if profile_image:
+                        operator.user.profile_image = profile_image
+                        current_app.logger.info(f"Profile image saved: {profile_image}")
+                    else:
+                        current_app.logger.warning("Failed to save profile image")
+
+                # Save changes
+                current_app.logger.info("Committing changes to database")
+                db.session.commit()
+                log_action(ActionType.UPDATE, f"Updated operator {operator.user.username}", db)
+
+                flash(f'Operator {operator.user.first_name} {operator.user.last_name} updated successfully!', "success")
+                return redirect(url_for('owner.view_operator', operator_id=operator_id))
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f"Error updating operator: {str(e)}")
+                current_app.logger.error(traceback.format_exc())
+                flash(f'Error updating operator: {str(e)}', "danger")
+        else:
+            current_app.logger.error(f"Form validation errors: {form.errors}")
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"{field}: {error}", "danger")
+
+    # Get unread messages count for UI
     unread_messages_count = Message.query.filter_by(
         recipient_id=current_user.id,
         is_read=False
     ).count()
 
-    # Get operator request count
+    # Get operator request count for UI
     operator_requests_count = Message.query.filter(
         Message.recipient_id == current_user.id,
         Message.company_id == company_id,
@@ -1290,13 +1338,19 @@ def edit_operator(operator_id):
         Message.is_read == False
     ).count()
 
+    # Current manager_id for the template
+    current_manager_id = str(operator.manager_id) if operator.manager_id else "0"
+    current_app.logger.info(f"Rendering template with current_manager_id: {current_manager_id}")
+
     return render_template(
         'owner/edit_operator.html',
         title='Edit Operator',
         form=form,
         operator=operator,
         unread_messages_count=unread_messages_count,
-        operator_requests_count=operator_requests_count
+        operator_requests_count=operator_requests_count,
+        manager_choices=manager_choices,
+        current_manager_id=current_manager_id
     )
 
 @owner.route('/dashboard/owner/operators/<int:operator_id>/delete', methods=['POST'])
