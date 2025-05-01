@@ -15,7 +15,10 @@
                     <i class="fas fa-users"></i> Managers
                 </a>
                 <a href="{{ url_for('statistics.dashboard') }}" class="list-group-item list-group-item-action">
-                    <i class="fas fa-chart-bar"></i> Reports
+                    <i class="fas fa-chart-line"></i> Statistics
+                </a>
+                <a href="{{ url_for('statistics.reports') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-file-alt"></i> Reports
                 </a>
                 <a href="{{ url_for('messages.inbox') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-envelope"></i> Messages
@@ -27,6 +30,20 @@
                     <i class="fas fa-cog"></i> Company Settings
                 </a>
             </div>
+            {% if operator_requests_count and operator_requests_count > 0 %}
+            <div class="alert alert-info d-flex align-items-center" role="alert">
+                <div class="me-3">
+                    <i class="fas fa-bell fa-2x"></i>
+                </div>
+                <div>
+                    <h5 class="alert-heading mb-1">Operator Requests Pending</h5>
+                    <p class="mb-0">
+                        You have {{ operator_requests_count }} pending request{{ 's' if operator_requests_count != 1 else '' }} for new operators.
+                        <a href="{{ url_for('main.owner_operator_requests') }}" class="alert-link">View requests</a>
+                    </p>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Manager Quick Actions -->
@@ -243,20 +260,20 @@
                                         <td>
                                             <div class="d-flex align-items-center">
                                                 {% if operator.user.profile_image %}
-                                                    <img src="{{ url_for('static', filename=operator["user"].profile_image) }}" alt="Profile image" class="profile-image-sm me-2">
+                                                    <img src="{{ url_for('static', filename=operator.user.profile_image) }}" alt="Profile image" class="profile-image-sm me-2">
                                                 {% else %}
                                                     <div class="rounded-circle bg-info d-inline-flex justify-content-center align-items-center me-2" style="width: 35px; height: 35px;">
-                                                        <span class="text-white">{{ operator["user"].first_name[0] }}{{ operator["user"].last_name[0] }}</span>
+                                                        <span class="text-white">{{ operator.user.first_name[0] }}{{ operator.user.last_name[0] }}</span>
                                                     </div>
                                                 {% endif %}
-                                                {{ operator["user"].first_name }} {{ operator["user"].last_name }}
+                                                {{ operator.user.first_name }} {{ operator.user.last_name }}
                                             </div>
                                         </td>
-                                        <td>{{ operator["user"].email }}</td>
-                                        <td>{{ operator["user"].phone or '-' }}</td>
+                                        <td>{{ operator.user.email }}</td>
+                                        <td>{{ operator.user.phone or '-' }}</td>
                                         <td>
                                             {% if operator.drivers %}
-                                                <span class="badge bg-warning">{{ operator["drivers"]|length }} drivers</span>
+                                                <span class="badge bg-warning">{{ operator.drivers|length }} drivers</span>
                                             {% else %}
                                                 <span class="badge bg-secondary">No drivers</span>
                                             {% endif %}
@@ -270,19 +287,19 @@
                                         </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">
-                                                <a href="{{ url_for('messages.chat', user_id=operator["user"].id) }}" class="btn btn-outline-primary">
+                                                <a href="{{ url_for('messages.chat', user_id=operator.user.id) }}" class="btn btn-outline-primary">
                                                     <i class="fas fa-envelope"></i>
                                                 </a>
-                                                <a href="{{ url_for('main.view_operator', operator_id=operator["id"]) }}" class="btn btn-outline-info">
+                                                <a href="{{ url_for('main.view_operator', operator_id=operator.id) }}" class="btn btn-outline-info">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#removeOperatorModal{{ operator["id"] }}">
+                                                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#removeOperatorModal{{ operator.id }}">
                                                     <i class="fas fa-user-minus"></i>
                                                 </button>
                                             </div>
 
                                             <!-- Remove Operator Modal -->
-                                            <div class="modal fade" id="removeOperatorModal{{ operator["id"] }}" tabindex="-1" aria-hidden="true">
+                                            <div class="modal fade" id="removeOperatorModal{{ operator.id }}" tabindex="-1" aria-hidden="true">
                                                 <div class="modal-dialog">
                                                     <div class="modal-content">
                                                         <div class="modal-header">
@@ -290,12 +307,12 @@
                                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                         </div>
                                                         <div class="modal-body">
-                                                            <p>Are you sure you want to remove <strong>{{ operator["user"].first_name }} {{ operator["user"].last_name }}</strong> from {{ manager.user.first_name }}'s team?</p>
+                                                            <p>Are you sure you want to remove <strong>{{ operator.user.first_name }} {{ operator.user.last_name }}</strong> from {{ manager.user.first_name }}'s team?</p>
                                                             <p class="text-danger">This operator will need to be reassigned to another manager.</p>
                                                         </div>
                                                         <div class="modal-footer">
                                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                            <form action="{{ url_for('main.remove_operator_from_manager', operator_id=operator["id"], manager_id=manager.id) }}" method="post">
+                                                            <form action="{{ url_for('owner.remove_operator_from_manager', operator_id=operator.id, manager_id=manager.id) }}" method="post">
                                                                 <button type="submit" class="btn btn-danger">Remove</button>
                                                             </form>
                                                         </div>
@@ -332,10 +349,60 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form action="{{ url_for('main.assign_operators_to_manager', manager_id=manager.id) }}" method="post">
+                <form action="{{ url_for('owner.assign_operators_to_manager', manager_id=manager.id) }}" method="post">
                     <div class="mb-3">
                         <label for="operatorSearch" class="form-label">Search Operators</label>
                         <input type="text" class="form-control" id="operatorSearch" placeholder="Search by name or email">
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;"></th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Current Manager</th>
+                                    <th>Drivers</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if available_operators %}
+                                    {% for operator in available_operators %}
+                                        <tr>
+                                            <td>
+                                                <input type="checkbox" class="form-check-input operator-checkbox" name="operator_ids[]" value="{{ operator.id }}"
+                                                    {{ 'checked' if operator.manager_id == manager.id else '' }}>
+                                            </td>
+                                            <td>{{ operator.user.first_name }} {{ operator.user.last_name }}</td>
+                                            <td>{{ operator.user.email }}</td>
+                                            <td>
+                                                {% if operator.manager %}
+                                                    {{ operator.manager.user.first_name }} {{ operator.manager.user.last_name }}
+                                                {% else %}
+                                                    <span class="text-muted">None</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if operator.drivers %}
+                                                    <span class="badge bg-warning">{{ operator.drivers|length }} drivers</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">No drivers</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="5" class="text-center py-3">
+                                            <span class="text-muted">No available operators found</span>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+
                     <div class="d-flex justify-content-between align-items-center mt-3">
                         <div>
                             <button type="button" class="btn btn-outline-primary btn-sm" id="selectAllOperators">Select All</button>
@@ -386,50 +453,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-{% endblock %}    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th style="width: 50px;"></th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Current Manager</th>
-                                    <th>Drivers</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% if available_operators %}
-                                    {% for operator in available_operators %}
-                                        <tr>
-                                            <td>
-                                                <input type="checkbox" class="form-check-input operator-checkbox" name="operator_ids[]" value="{{ operator["id"] }}"
-                                                    {{ 'checked' if operator["manager_id"] == manager.id else '' }}>
-                                            </td>
-                                            <td>{{ operator["user"].first_name }} {{ operator["user"].last_name }}</td>
-                                            <td>{{ operator["user"].email }}</td>
-                                            <td>
-                                                {% if operator.manager %}
-                                                    {{ operator["manager"].user.first_name }} {{ operator["manager"].user.last_name }}
-                                                {% else %}
-                                                    <span class="text-muted">None</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                {% if operator.drivers %}
-                                                    <span class="badge bg-warning">{{ operator["drivers"]|length }} drivers</span>
-                                                {% else %}
-                                                    <span class="badge bg-secondary">No drivers</span>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                {% else %}
-                                    <tr>
-                                        <td colspan="5" class="text-center py-3">
-                                            <span class="text-muted">No available operators found</span>
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
-                    </div>
+{% endblock %}

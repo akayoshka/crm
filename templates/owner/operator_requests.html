@@ -23,7 +23,7 @@
                         <span class="badge bg-danger ms-2">{{ unread_messages_count }}</span>
                     {% endif %}
                 </a>
-                <a href="{{ url_for('main.owner_operator_requests') }}" class="list-group-item list-group-item-action active">
+                <a href="{{ url_for('owner.operator_requests') }}" class="list-group-item list-group-item-action active">
                     <i class="fas fa-user-plus"></i> Operator Requests
                 </a>
                 <a href="{{ url_for('owner.company_settings') }}" class="list-group-item list-group-item-action">
@@ -32,7 +32,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-9">
         <div class="card">
             <div class="card-header bg-primary text-white">
@@ -53,20 +53,20 @@
                                     </h5>
                                     <small>{{ request.sent_at.strftime('%Y-%m-%d %H:%M') }}</small>
                                 </div>
-                                
+
                                 <p class="mb-3 whitespace-pre-line">{{ request.content }}</p>
-                                
+
                                 <div class="d-flex justify-content-end">
                                     <button class="btn btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#rejectModal{{ request.id }}">
                                         <i class="fas fa-times"></i> Reject
                                     </button>
-                                    <form action="{{ url_for('main.approve_operator_request', message_id=request.id) }}" method="post">
+                                    <form action="{{ url_for('owner.approve_operator_request', message_id=request.id) }}" method="post">
                                         <button type="submit" class="btn btn-success">
                                             <i class="fas fa-check"></i> Approve & Create
                                         </button>
                                     </form>
                                 </div>
-                                
+
                                 <!-- Reject Modal -->
                                 <div class="modal fade" id="rejectModal{{ request.id }}" tabindex="-1" aria-hidden="true">
                                     <div class="modal-dialog">
@@ -75,7 +75,7 @@
                                                 <h5 class="modal-title">Reject Operator Request</h5>
                                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                             </div>
-                                            <form action="{{ url_for('main.reject_operator_request', message_id=request.id) }}" method="post">
+                                            <form action="{{ url_for('owner.reject_operator_request', message_id=request.id) }}" method="post">
                                                 <div class="modal-body">
                                                     <div class="mb-3">
                                                         <label for="rejection_reason" class="form-label">Reason for Rejection</label>
@@ -94,14 +94,14 @@
                             </div>
                         {% endfor %}
                     </div>
-                    
+
                     <!-- Pagination -->
                     {% if requests.pages > 1 %}
                         <nav aria-label="Operator requests pagination">
                             <ul class="pagination justify-content-center mt-4">
                                 {% if requests.has_prev %}
                                     <li class="page-item">
-                                        <a class="page-link" href="{{ url_for('main.owner_operator_requests', page=requests.prev_num) }}">Previous</a>
+                                        <a class="page-link" href="{{ url_for('owner.operator_requests', page=requests.prev_num) }}">Previous</a>
                                     </li>
                                 {% else %}
                                     <li class="page-item disabled">
@@ -117,7 +117,7 @@
                                             </li>
                                         {% else %}
                                             <li class="page-item">
-                                                <a class="page-link" href="{{ url_for('main.owner_operator_requests', page=page_num) }}">{{ page_num }}</a>
+                                                <a class="page-link" href="{{ url_for('owner.operator_requests', page=page_num) }}">{{ page_num }}</a>
                                             </li>
                                         {% endif %}
                                     {% else %}
@@ -129,7 +129,7 @@
 
                                 {% if requests.has_next %}
                                     <li class="page-item">
-                                        <a class="page-link" href="{{ url_for('main.owner_operator_requests', page=requests.next_num) }}">Next</a>
+                                        <a class="page-link" href="{{ url_for('owner.operator_requests', page=requests.next_num) }}">Next</a>
                                     </li>
                                 {% else %}
                                     <li class="page-item disabled">

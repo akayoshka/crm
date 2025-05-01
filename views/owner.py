@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from sqlalchemy import func, or_, and_
+from models import Message, ActionType
 
 from app import db
 from models import (
@@ -11,7 +12,6 @@ from models import (
 from utils import role_required, log_action
 from forms import CompanyForm, UserForm, EditUserForm
 
-# Создание Blueprint для маршрутов владельца компании
 owner = Blueprint('owner', __name__, url_prefix='/owner')
 
 
@@ -564,8 +564,7 @@ def assign_operators_to_manager(manager_id):
         db.session.rollback()
         flash(f'Error updating operator assignments: {str(e)}', 'danger')
 
-    return redirect(url_for('main.view_manager', manager_id=manager_id))
-
+    return redirect(url_for('owner.view_manager', manager_id=manager_id))
 
 @owner.route('/dashboard/owner/operators/<int:operator_id>/remove-from-manager/<int:manager_id>', methods=['POST'])
 @login_required
@@ -592,7 +591,7 @@ def remove_operator_from_manager(operator_id, manager_id):
     # Ensure operator is assigned to this manager
     if operator.manager_id != manager_id:
         flash('This operator is not assigned to the specified manager.', "WARNING")
-        return redirect(url_for('main.view_manager', manager_id=manager_id))
+        return redirect(url_for('owner.view_manager', manager_id=manager_id))
 
     try:
         # Remove manager assignment
@@ -607,17 +606,9 @@ def remove_operator_from_manager(operator_id, manager_id):
         db.session.rollback()
         flash(f'Error removing operator from manager: {str(e)}', "DANGER")
 
-    return redirect(url_for('main.view_manager', manager_id=manager_id))
+    return redirect(url_for('owner.view_manager', manager_id=manager_id))
 
 
-# Добавить в файл views/main.py
-
-# Импорты должны уже быть в файле, но для уверенности убедитесь,
-# что в начале файла есть импорт Message
-from models import Message, ActionType
-
-
-# Добавьте этот маршрут после других маршрутов для владельца компании
 @owner.route('/dashboard/owner/operator-requests')
 @login_required
 @role_required(UserRole.COMPANY_OWNER.value)
@@ -665,7 +656,6 @@ def operator_requests():
     )
 
 
-# Добавить этот маршрут для одобрения/отклонения запросов
 @owner.route('/dashboard/owner/operator-requests/<int:message_id>/approve', methods=['POST'])
 @login_required
 @role_required(UserRole.COMPANY_OWNER.value)
