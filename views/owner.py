@@ -673,7 +673,7 @@ def approve_operator_request(message_id):
     # Check if this is the recipient
     if message.recipient_id != current_user.id:
         flash('You do not have permission to approve this request.', "danger")
-        return redirect(url_for('main.owner_operator_requests'))
+        return redirect(url_for('owner.operator_requests'))
 
     # Extract manager ID (sender)
     manager_id = message.sender_id
@@ -741,7 +741,7 @@ def reject_operator_request(message_id):
     # Check if this is the recipient
     if message.recipient_id != current_user.id:
         flash('You do not have permission to reject this request.', "danger")
-        return redirect(url_for('main.owner_operator_requests'))
+        return redirect(url_for('owner.operator_requests'))
 
     company_id = current_user.company_owner.company_id
     reason = request.form.get('rejection_reason', 'No reason provided')
@@ -769,7 +769,7 @@ def reject_operator_request(message_id):
         db.session.rollback()
         flash(f'Error rejecting request: {str(e)}', "danger")
 
-    return redirect(url_for('main.owner_operator_requests'))
+    return redirect(url_for('owner.operator_requests'))
 
 
 @owner.route('/dashboard/owner/company-settings')
@@ -901,3 +901,98 @@ def update_company_settings():
 
     flash('Company settings updated successfully!', "SUCCESS")
     return redirect(url_for('owner.company_settings'))
+
+
+@owner.route('/operators/<int:operator_id>')
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def view_operator(operator_id):
+    """
+    View details of a specific operator for company owner
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Get operator
+    operator = Operator.query.get_or_404(operator_id)
+
+    # Check if the operator belongs to this company
+    if operator.company_id != company_id:
+        flash('This operator is not part of your company.', "danger")
+        return redirect(url_for('owner.dashboard'))
+
+    # Get activity logs for this operator
+    activity_logs = Log.query.filter_by(
+        user_id=operator.id
+    ).order_by(Log.timestamp.desc()).limit(10).all()
+
+    # Get drivers managed by this operator
+    drivers = Driver.query.filter_by(operator_id=operator.id).all()
+
+    # Get manager for this operator
+    manager = None
+    if operator.manager_id:
+        manager = Manager.query.get(operator.manager_id)
+
+    # Get tasks created by this operator
+    tasks = Task.query.filter_by(
+        creator_id=operator.id
+    ).order_by(Task.created_at.desc()).limit(5).all()
+
+    # Get performance metrics
+    task_count = Task.query.filter_by(creator_id=operator.id).count()
+    completed_tasks = Task.query.filter_by(
+        creator_id=operator.id, status=TaskStatus.COMPLETED
+    ).count()
+    completion_rate = (completed_tasks / task_count * 100) if task_count > 0 else 0
+
+    # Get route metrics
+    routes_query = Route.query.join(
+        Driver, Route.driver_id == Driver.id
+    ).filter(
+        Driver.operator_id == operator.id
+    )
+    total_routes = routes_query.count()
+    completed_routes = routes_query.filter(
+        Route.status == RouteStatus.COMPLETED
+    ).count()
+
+    # Calculate route completion rate
+    route_completion_rate = (completed_routes / total_routes * 100) if total_routes > 0 else 0
+
+    # Get unread messages count
+    unread_messages_count = Message.query.filter_by(
+        recipient_id=current_user.id,
+        is_read=False
+    ).count()
+
+    # Get operator request count
+    operator_requests_count = Message.query.filter(
+        Message.recipient_id == current_user.id,
+        Message.company_id == company_id,
+        Message.content.like('%requests a new operator account%'),
+        Message.is_read == False
+    ).count()
+
+    log_action(ActionType.VIEW, f"Viewed operator {operator.user.username}", db)
+
+    return render_template(
+        'owner/view_operator.html',
+        title=f'Operator: {operator.user.first_name} {operator.user.last_name}',
+        operator=operator,
+        activity_logs=activity_logs,
+        drivers=drivers,
+        manager=manager,
+        tasks=tasks,
+        task_count=task_count,
+        completed_tasks=completed_tasks,
+        completion_rate=round(completion_rate, 1),
+        total_routes=total_routes,
+        completed_routes=completed_routes,
+        route_completion_rate=round(route_completion_rate, 1),
+        unread_messages_count=unread_messages_count,
+        operator_requests_count=operator_requests_count
+    )

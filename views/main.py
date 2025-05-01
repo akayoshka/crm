@@ -334,7 +334,10 @@ def request_operator():
                 content=f"Manager {current_user.first_name} {current_user.last_name} requests a new operator account:\n\n"
                         f"Name: {first_name} {last_name}\n"
                         f"Email: {email}\n"
-                        f"Phone: {phone or 'Not provided'}\n\n"
+                        f"Phone: {phone or 'Not provided'}\n"
+                        f"Position: Operator\n"
+                        f"Manager: {current_user.first_name} {current_user.last_name}\n"
+                        f"Manager Email: {current_user.email}\n\n"
                         f"Justification: {justification}",
                 sender_id=current_user.id,
                 recipient_id=company_owner.user.id,

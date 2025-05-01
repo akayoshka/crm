@@ -411,115 +411,154 @@
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <script src="{{ url_for('static', filename='js/map-utils.js') }}"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize the map
-        const map = initMap('routeMap');
+    // This script should be included in the view_route.html template
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the map
+    const map = initMap('routeMap');
 
-        // Get route data from backend
-        const startPointText = "{{ route.start_point }}";
-        const endPointText = "{{ route.end_point }}";
-        const routeData = {{ route.waypoints|tojson if route.waypoints else '[]' }};
+    // Get route data from backend
+    const startPointText = "{{ route.start_point }}";
+    const endPointText = "{{ route.end_point }}";
+    const routeData = {{ route.waypoints|tojson if route.waypoints else '[]' }};
 
-        // Get or create map-utils.js functions if not available
-        // (These might normally be in map-utils.js but we're ensuring they're available)
-        if (typeof extractCoordinatesFromGoogleMapsUrl !== 'function') {
-            // Simple implementation of coordinate extraction from URL
-            window.extractCoordinatesFromGoogleMapsUrl = function(url) {
-                try {
-                    // Format: ?q=lat,lng or @lat,lng,zoom
-                    const queryParamMatch = url.match(/[?&@](?:q|ll)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
-                    if (queryParamMatch) {
-                        return {
-                            lat: parseFloat(queryParamMatch[1]),
-                            lng: parseFloat(queryParamMatch[2])
-                        };
-                    }
+    // Default coordinates (London) as fallback
+    const defaultLat = 51.505;
+    const defaultLng = -0.09;
 
-                    // Format: maps/@lat,lng or maps/place/.../@lat,lng
-                    const atSymbolMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-                    if (atSymbolMatch) {
-                        return {
-                            lat: parseFloat(atSymbolMatch[1]),
-                            lng: parseFloat(atSymbolMatch[2])
-                        };
-                    }
+    // Initialize coordinates
+    let startCoords = null;
+    let endCoords = null;
+    let waypointCoords = [];
 
-                    // Format: !3dlat!4dlng
-                    const detailedFormatMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-                    if (detailedFormatMatch) {
-                        return {
-                            lat: parseFloat(detailedFormatMatch[1]),
-                            lng: parseFloat(detailedFormatMatch[2])
-                        };
-                    }
-
-                    // Direct coordinates in format lat,lng
-                    const directCoords = url.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/);
-                    if (directCoords) {
-                        return {
-                            lat: parseFloat(directCoords[1]),
-                            lng: parseFloat(directCoords[2])
-                        };
-                    }
-
-                    return null;
-                } catch (error) {
-                    console.error('Error extracting coordinates:', error);
-                    return null;
-                }
+    // Function to process Google Maps URL and extract coordinates
+    async function processMapUrl(url) {
+        // First check if it's a direct coordinate format like "lat, lng"
+        const directCoords = url.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/);
+        if (directCoords) {
+            return {
+                success: true,
+                lat: parseFloat(directCoords[1]),
+                lng: parseFloat(directCoords[2])
             };
         }
 
-        // Default coordinates (London) as fallback
-        const defaultLat = 51.505;
-        const defaultLng = -0.09;
+        // If it contains google maps URL, use the backend API to extract coordinates
+        if (url.includes('google.com/maps') || url.includes('goo.gl/maps') || url.includes('maps.app.goo.gl')) {
+            try {
+                const response = await fetch('/routes/geocode-maps-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
 
-        // Initialize coordinates
-        let startCoords = null;
-        let endCoords = null;
-        let waypointCoords = [];
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
 
-        // Try to extract coordinates from start point (it might be a Google Maps URL)
-        if (startPointText.includes('google.com/maps') || startPointText.includes('goo.gl/maps')) {
-            const coords = extractCoordinatesFromGoogleMapsUrl(startPointText);
-            if (coords) {
-                startCoords = [coords.lat, coords.lng];
-                console.log('Extracted start coordinates from URL:', startCoords);
+                const data = await response.json();
+                console.log('Server response for URL extraction:', data);
+
+                if (data.success) {
+                    return {
+                        success: true,
+                        lat: data.lat,
+                        lng: data.lng
+                    };
+                } else {
+                    console.warn('Could not extract coordinates from URL:', data.error);
+                    return { success: false };
+                }
+            } catch (error) {
+                console.error('Error processing maps URL:', error);
+                return { success: false };
             }
+        }
+
+        return { success: false };
+    }
+
+    // Function to handle short URLs using the backend endpoint
+    async function processShortUrl(url) {
+        try {
+            const response = await fetch('/routes/process-short-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ url: url })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('Server response for short URL:', data);
+
+            if (data.success) {
+                return {
+                    success: true,
+                    lat: data.latitude,
+                    lng: data.longitude
+                };
+            } else {
+                console.warn('Could not extract coordinates from short URL:', data.error || 'Unknown error');
+                return { success: false };
+            }
+        } catch (error) {
+            console.error('Error processing short URL:', error);
+            return { success: false };
+        }
+    }
+
+    // Function to initialize the map with markers and route
+    async function initializeRouteMap() {
+        // Process start point
+        let startResult = await processMapUrl(startPointText);
+        if (startResult.success) {
+            startCoords = [startResult.lat, startResult.lng];
+            console.log('Extracted start coordinates:', startCoords);
         } else {
-            // Try to parse direct coordinates like "lat, lng"
-            const directCoords = startPointText.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
-            if (directCoords) {
-                startCoords = [parseFloat(directCoords[1]), parseFloat(directCoords[2])];
-                console.log('Parsed start coordinates from text:', startCoords);
+            // Try processing as short URL if it's a goo.gl URL
+            if (startPointText.includes('goo.gl/maps') || startPointText.includes('maps.app.goo.gl')) {
+                startResult = await processShortUrl(startPointText);
+                if (startResult.success) {
+                    startCoords = [startResult.lat, startResult.lng];
+                    console.log('Extracted start coordinates from short URL:', startCoords);
+                }
+            }
+
+            // Use default if still not successful
+            if (!startCoords) {
+                startCoords = [defaultLat - 0.02, defaultLng - 0.02];
+                console.log('Using default start coordinates:', startCoords);
             }
         }
 
-        // Try to extract coordinates from end point
-        if (endPointText.includes('google.com/maps') || endPointText.includes('goo.gl/maps')) {
-            const coords = extractCoordinatesFromGoogleMapsUrl(endPointText);
-            if (coords) {
-                endCoords = [coords.lat, coords.lng];
-                console.log('Extracted end coordinates from URL:', endCoords);
-            }
+        // Process end point
+        let endResult = await processMapUrl(endPointText);
+        if (endResult.success) {
+            endCoords = [endResult.lat, endResult.lng];
+            console.log('Extracted end coordinates:', endCoords);
         } else {
-            // Try to parse direct coordinates
-            const directCoords = endPointText.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
-            if (directCoords) {
-                endCoords = [parseFloat(directCoords[1]), parseFloat(directCoords[2])];
-                console.log('Parsed end coordinates from text:', endCoords);
+            // Try processing as short URL if it's a goo.gl URL
+            if (endPointText.includes('goo.gl/maps') || endPointText.includes('maps.app.goo.gl')) {
+                endResult = await processShortUrl(endPointText);
+                if (endResult.success) {
+                    endCoords = [endResult.lat, endResult.lng];
+                    console.log('Extracted end coordinates from short URL:', endCoords);
+                }
             }
-        }
 
-        // Set default coordinates if not found
-        if (!startCoords) {
-            startCoords = [defaultLat - 0.02, defaultLng - 0.02];
-            console.log('Using default start coordinates:', startCoords);
-        }
-
-        if (!endCoords) {
-            endCoords = [defaultLat + 0.02, defaultLng + 0.02];
-            console.log('Using default end coordinates:', endCoords);
+            // Use default if still not successful
+            if (!endCoords) {
+                endCoords = [defaultLat + 0.02, defaultLng + 0.02];
+                console.log('Using default end coordinates:', endCoords);
+            }
         }
 
         // Process waypoints if available
@@ -533,25 +572,24 @@
 
                 // Try to extract coordinates from location field if it exists
                 if (waypoint.location) {
-                    // Check if location is a Google Maps URL
-                    if (waypoint.location.includes('google.com/maps') || waypoint.location.includes('goo.gl/maps')) {
-                        const coords = extractCoordinatesFromGoogleMapsUrl(waypoint.location);
-                        if (coords) {
-                            waypointCoords.push([coords.lat, coords.lng]);
+                    const waypointResult = await processMapUrl(waypoint.location);
+                    if (waypointResult.success) {
+                        waypointCoords.push([waypointResult.lat, waypointResult.lng]);
+                        continue;
+                    }
+
+                    // Try as short URL
+                    if (waypoint.location.includes('goo.gl/maps') || waypoint.location.includes('maps.app.goo.gl')) {
+                        const shortUrlResult = await processShortUrl(waypoint.location);
+                        if (shortUrlResult.success) {
+                            waypointCoords.push([shortUrlResult.lat, shortUrlResult.lng]);
                             continue;
                         }
                     }
-
-                    // Try to parse direct coordinates from location
-                    const directCoords = waypoint.location.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
-                    if (directCoords) {
-                        waypointCoords.push([parseFloat(directCoords[1]), parseFloat(directCoords[2])]);
-                        continue;
-                    }
                 }
 
-                // If no coordinates found for this waypoint, we'll position it on a straight line
-                // This will be handled below if waypointCoords.length != routeData.length
+                // If we reach here, couldn't get coordinates for this waypoint
+                console.log('Could not extract coordinates for waypoint:', waypoint);
             }
         }
 
@@ -570,7 +608,11 @@
         }
 
         // Create markers and route
+        createMapMarkers();
+    }
 
+    // Function to create markers and route line
+    function createMapMarkers() {
         // Custom icons
         const startIcon = L.divIcon({
             className: 'custom-div-icon',
@@ -636,7 +678,11 @@
                 padding: [50, 50]
             });
         }
-    });
+    }
+
+    // Initialize the map with route data
+    initializeRouteMap();
+});
 </script>
 {% endblock %}
 {% endblock %}

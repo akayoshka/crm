@@ -39,7 +39,7 @@
                     <h5 class="alert-heading mb-1">Operator Requests Pending</h5>
                     <p class="mb-0">
                         You have {{ operator_requests_count }} pending request{{ 's' if operator_requests_count != 1 else '' }} for new operators.
-                        <a href="{{ url_for('main.owner_operator_requests') }}" class="alert-link">View requests</a>
+                        <a href="{{ url_for('owner.operator_requests') }}" class="alert-link">View requests</a>
                     </p>
                 </div>
             </div>

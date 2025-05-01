@@ -5,12 +5,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b3fe698a-4de6-4cb7-9782-9fee7824eed1" name="Changes" comment="commit">
+      <change afterPath="$PROJECT_DIR$/templates/owner/operators.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/templates/owner/view_operator.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/operator/routes.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/operator/routes.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/owner/company_settings.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/company_settings.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/owner/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/dashboard.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/owner/managers.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/managers.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/owner/operator_requests.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/operator_requests.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/owner/view_manager.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/view_manager.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/routes/view_route.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/routes/view_route.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/views/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/views/owner.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/owner.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -21,8 +25,8 @@
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
-        <option value="HTML File" />
         <option value="Python Script" />
+        <option value="HTML File" />
       </list>
     </option>
   </component>
@@ -200,14 +204,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1745198231756</updated>
-    </task>
-    <task id="LOCAL-00018" summary="commit">
-      <option name="closed" value="true" />
-      <created>1745546747400</created>
-      <option name="number" value="00018" />
-      <option name="presentableId" value="LOCAL-00018" />
-      <option name="project" value="LOCAL" />
-      <updated>1745546747400</updated>
     </task>
     <task id="LOCAL-00019" summary="commit">
       <option name="closed" value="true" />
@@ -593,7 +589,15 @@
       <option name="project" value="LOCAL" />
       <updated>1746120052496</updated>
     </task>
-    <option name="localTasksCounter" value="67" />
+    <task id="LOCAL-00067" summary="commit">
+      <option name="closed" value="true" />
+      <created>1746123083207</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1746123083207</updated>
+    </task>
+    <option name="localTasksCounter" value="68" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

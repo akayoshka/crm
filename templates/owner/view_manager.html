@@ -39,7 +39,7 @@
                     <h5 class="alert-heading mb-1">Operator Requests Pending</h5>
                     <p class="mb-0">
                         You have {{ operator_requests_count }} pending request{{ 's' if operator_requests_count != 1 else '' }} for new operators.
-                        <a href="{{ url_for('main.owner_operator_requests') }}" class="alert-link">View requests</a>
+                        <a href="{{ url_for('owner.operator_requests') }}" class="alert-link">View requests</a>
                     </p>
                 </div>
             </div>
@@ -290,7 +290,7 @@
                                                 <a href="{{ url_for('messages.chat', user_id=operator.user.id) }}" class="btn btn-outline-primary">
                                                     <i class="fas fa-envelope"></i>
                                                 </a>
-                                                <a href="{{ url_for('main.view_operator', operator_id=operator.id) }}" class="btn btn-outline-info">
+                                                <a href="{{ url_for('owner.view_operator', operator_id=operator.id) }}" class="btn btn-outline-info">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
                                                 <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#removeOperatorModal{{ operator.id }}">
