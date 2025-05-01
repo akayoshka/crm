@@ -2,6 +2,8 @@ import traceback
 from datetime import datetime
 from flask import current_app
 import os
+
+from flask_login import current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy import func, and_, or_
 from sqlalchemy.exc import SQLAlchemyError
@@ -364,6 +366,83 @@ class UserService:
         # Paginate results
         return search_query.paginate(page=page, per_page=per_page)
 
+    @staticmethod
+    def update_user(user, form, db_session, save_changes=True):
+        """
+        Update an existing user from form data
+
+        Args:
+            user: User object to update
+            form: Form containing updated user data
+            db_session: SQLAlchemy session
+            save_changes: Whether to commit changes to database
+
+        Returns:
+            Updated user object
+        """
+        try:
+            current_app.logger.info(f"Updating user {user.username}")
+
+            # Update basic user information
+            user.username = form.username.data
+            user.email = form.email.data
+            user.first_name = form.first_name.data
+            user.last_name = form.last_name.data
+            user.phone = form.phone.data
+
+            # Update role if present in form
+            if hasattr(form, 'role') and form.role.data:
+                # Only admins can change roles
+                if current_user.role == UserRole.ADMIN:
+                    user.role = UserRole(form.role.data)
+
+            # Update active status if present in form
+            if hasattr(form, 'is_active'):
+                user.is_active = form.is_active.data
+
+            # Handle profile image if present
+            if hasattr(form, 'profile_image') and form.profile_image.data:
+                current_app.logger.info(f"Processing new profile image for user {user.username}")
+                new_profile_image = save_profile_image(form.profile_image.data)
+                if new_profile_image:
+                    # If user already has a profile image, delete the old one
+                    if user.profile_image:
+                        try:
+                            # Delete old profile image
+                            delete_file(user.profile_image)
+                        except Exception as e:
+                            current_app.logger.warning(f"Error deleting old profile image: {str(e)}")
+
+                    user.profile_image = new_profile_image
+                else:
+                    current_app.logger.warning(f"Failed to save new profile image for user {user.username}")
+
+            # Process role-specific data if necessary
+            if user.role == UserRole.ADMIN and hasattr(form, 'admin_level'):
+                if not user.admin:
+                    # Create admin record if it doesn't exist
+                    admin = Admin(id=user.id, admin_level=form.admin_level.data)
+                    db_session.add(admin)
+                else:
+                    # Update existing admin record
+                    user.admin.admin_level = form.admin_level.data
+
+            # Similar updates for other role-specific data can be added here
+            # For example, updating driver license information, etc.
+
+            if save_changes:
+                current_app.logger.info(f"Committing changes for user {user.username}")
+                db_session.commit()
+                log_action(ActionType.UPDATE, f"Updated user {user.username}", db_session)
+                current_app.logger.info(f"User {user.username} updated successfully")
+
+            return user
+        except Exception as e:
+            current_app.logger.error(f"Error updating user: {str(e)}")
+            current_app.logger.error(f"Traceback: {traceback.format_exc()}")
+            db_session.rollback()
+            raise
+
 
 class CompanyService:
     @staticmethod
@@ -683,6 +762,8 @@ class TaskService:
 
         # Paginate results
         return search_query.paginate(page=page, per_page=per_page)
+
+
 
 
 class RouteService:

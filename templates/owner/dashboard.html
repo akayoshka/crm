@@ -8,10 +8,10 @@
                 <i class="fas fa-user-tie"></i> Owner Panel
             </div>
             <div class="list-group list-group-flush">
-                <a href="{{ url_for('main.owner_dashboard') }}" class="list-group-item list-group-item-action active">
+                <a href="{{ url_for('owner.dashboard') }}" class="list-group-item list-group-item-action active">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </a>
-                <a href="{{ url_for('main.owner_managers') }}" class="list-group-item list-group-item-action">
+                <a href="{{ url_for('owner.managers') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-users"></i> Managers
                 </a>
                 <a href="{{ url_for('statistics.dashboard') }}" class="list-group-item list-group-item-action">
@@ -20,10 +20,30 @@
                 <a href="{{ url_for('statistics.reports') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-file-alt"></i> Reports
                 </a>
-                <a href="{{ url_for('main.owner_company_settings') }}" class="list-group-item list-group-item-action">
+                <a href="{{ url_for('messages.inbox') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-envelope"></i> Messages
+                    {% if unread_messages_count and unread_messages_count > 0 %}
+                    <span class="badge bg-danger ms-2">{{ unread_messages_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('owner.company_settings') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-cog"></i> Company Settings
                 </a>
             </div>
+            {% if operator_requests_count and operator_requests_count > 0 %}
+    <div class="alert alert-info d-flex align-items-center" role="alert">
+        <div class="me-3">
+            <i class="fas fa-bell fa-2x"></i>
+        </div>
+        <div>
+            <h5 class="alert-heading mb-1">Operator Requests Pending</h5>
+            <p class="mb-0">
+                You have {{ operator_requests_count }} pending request{{ 's' if operator_requests_count != 1 else '' }} for new operators.
+                <a href="{{ url_for('main.owner_operator_requests') }}" class="alert-link">View requests</a>
+            </p>
+        </div>
+    </div>
+{% endif %}
         </div>
 
         <!-- Company Info Card -->
@@ -107,7 +127,7 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3 text-center mb-3">
-                        <a href="{{ url_for('main.owner_managers') }}" class="btn btn-outline-primary p-3 w-100 h-100">
+                        <a href="{{ url_for('owner.managers') }}" class="btn btn-outline-primary p-3 w-100 h-100">
                             <i class="fas fa-user-plus fa-2x mb-2"></i><br>
                             Add Manager
                         </a>

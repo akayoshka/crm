@@ -8,16 +8,22 @@
                 <i class="fas fa-user-tie"></i> Owner Panel
             </div>
             <div class="list-group list-group-flush">
-                <a href="{{ url_for('main.owner_dashboard') }}" class="list-group-item list-group-item-action">
+                <a href="{{ url_for('owner.dashboard') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </a>
-                <a href="{{ url_for('main.owner_managers') }}" class="list-group-item list-group-item-action active">
+                <a href="{{ url_for('owner.managers') }}" class="list-group-item list-group-item-action active">
                     <i class="fas fa-users"></i> Managers
                 </a>
                 <a href="{{ url_for('statistics.dashboard') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-chart-bar"></i> Reports
                 </a>
-                <a href="{{ url_for('main.owner_company_settings') }}" class="list-group-item list-group-item-action">
+                <a href="{{ url_for('messages.inbox') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-envelope"></i> Messages
+                    {% if unread_messages_count and unread_messages_count > 0 %}
+                    <span class="badge bg-danger ms-2">{{ unread_messages_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('owner.company_settings') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-cog"></i> Company Settings
                 </a>
             </div>
@@ -29,7 +35,7 @@
         <div class="card mb-4">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Company Managers</h5>
-                <a href="{{ url_for('main.add_manager') }}" class="btn btn-light btn-sm">
+                <a href="{{ url_for('owner.add_manager') }}" class="btn btn-light btn-sm">
                     <i class="fas fa-plus"></i> Add Manager
                 </a>
             </div>
@@ -83,10 +89,10 @@
                                         </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">
-                                                <a href="{{ url_for('main.view_manager', manager_id=manager.id) }}" class="btn btn-outline-primary">
+                                                <a href="{{ url_for('owner.view_manager', manager_id=manager.id) }}" class="btn btn-outline-primary">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                <a href="{{ url_for('main.edit_manager', manager_id=manager.id) }}" class="btn btn-outline-primary">
+                                                <a href="{{ url_for('owner.edit_manager', manager_id=manager.id) }}" class="btn btn-outline-primary">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
                                                 <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteManagerModal{{ manager.id }}">
@@ -108,7 +114,7 @@
                                                         </div>
                                                         <div class="modal-footer">
                                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                            <form action="{{ url_for('main.delete_manager', manager_id=manager.id) }}" method="post">
+                                                            <form action="{{ url_for('owner.delete_manager', manager_id=manager.id) }}" method="post">
                                                                 <button type="submit" class="btn btn-danger">Delete Manager</button>
                                                             </form>
                                                         </div>
@@ -128,7 +134,7 @@
                             <ul class="pagination justify-content-center">
                                 {% if managers.has_prev %}
                                     <li class="page-item">
-                                        <a class="page-link" href="{{ url_for('main.owner_managers', page=managers.prev_num) }}">Previous</a>
+                                        <a class="page-link" href="{{ url_for('owner.managers', page=managers.prev_num) }}">Previous</a>
                                     </li>
                                 {% else %}
                                     <li class="page-item disabled">
@@ -144,7 +150,7 @@
                                             </li>
                                         {% else %}
                                             <li class="page-item">
-                                                <a class="page-link" href="{{ url_for('main.owner_managers', page=page_num) }}">{{ page_num }}</a>
+                                                <a class="page-link" href="{{ url_for('owner.managers', page=page_num) }}">{{ page_num }}</a>
                                             </li>
                                         {% endif %}
                                     {% else %}
@@ -156,7 +162,7 @@
 
                                 {% if managers.has_next %}
                                     <li class="page-item">
-                                        <a class="page-link" href="{{ url_for('main.owner_managers', page=managers.next_num) }}">Next</a>
+                                        <a class="page-link" href="{{ url_for('owner.managers', page=managers.next_num) }}">Next</a>
                                     </li>
                                 {% else %}
                                     <li class="page-item disabled">
@@ -172,7 +178,7 @@
                         <i class="fas fa-users fa-3x text-muted mb-3"></i>
                         <h5>No Managers Found</h5>
                         <p class="text-muted">You haven't added any managers to your company yet.</p>
-                        <a href="{{ url_for('main.add_manager') }}" class="btn btn-primary mt-2">
+                        <a href="{{ url_for('owner.add_manager') }}" class="btn btn-primary mt-2">
                             <i class="fas fa-plus"></i> Add First Manager
                         </a>
                     </div>
@@ -182,88 +188,89 @@
 
         <!-- Manager Performance Card -->
         <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">Manager Performance</h5>
-            </div>
-            <div class="card-body">
-                {% if managers.items %}
-                    <div class="row">
-                        {% for manager in managers.items %}
-                            {% if loop.index <= 4 %}
-                                <div class="col-md-6 mb-4">
-                                    <div class="card h-100">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between mb-3">
-                                                <div>
-                                                    <h6>{{ manager.user.first_name }} {{ manager.user.last_name }}</h6>
-                                                    <p class="text-muted mb-0">Team: {{ manager.operators|length }} operators</p>
-                                                </div>
-                                                <div>
-                                                    {% set performance_score = manager.performance_score if manager.performance_score is defined else (range(70, 100)|random) %}
-                                                    <div class="d-inline-block rounded-circle p-2 {{ 'bg-success' if performance_score >= 80 else ('bg-warning' if performance_score >= 60 else 'bg-danger') }} text-white" style="width: 40px; height: 40px; text-align: center;">
-                                                        {{ performance_score }}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div class="mb-3">
-                                                <small class="text-muted d-block mb-1">Task Completion Rate</small>
-                                                {% set completion_rate = manager.completion_rate if manager.completion_rate is defined else (range(50, 100)|random) %}
-                                                <div class="progress" style="height: 8px;">
-                                                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ completion_rate }}%;"
-                                                        aria-valuenow="{{ completion_rate }}" aria-valuemin="0" aria-valuemax="100"></div>
-                                                </div>
-                                                <div class="d-flex justify-content-between mt-1">
-                                                    <small>{{ completion_rate }}%</small>
-                                                    <small class="text-muted">Target: 85%</small>
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <small class="text-muted d-block mb-1">Active Tasks vs Completed</small>
-                                                {% set active_tasks_count = manager.active_tasks if manager.active_tasks is defined else (range(5, 20)|random) %}
-                                                {% set completed_tasks_count = manager.completed_tasks if manager.completed_tasks is defined else (range(10, 30)|random) %}
-                                                <div class="d-flex justify-content-between text-center">
-                                                    <div>
-                                                        <h5 class="mb-0">{{ active_tasks_count }}</h5>
-                                                        <small class="text-muted">Active</small>
-                                                    </div>
-                                                    <div>
-                                                        <h5 class="mb-0">{{ completed_tasks_count }}</h5>
-                                                        <small class="text-muted">Completed</small>
-                                                    </div>
-                                                    <div>
-                                                        <h5 class="mb-0">{{ active_tasks_count + completed_tasks_count }}</h5>
-                                                        <small class="text-muted">Total</small>
-                                                    </div>
-                                                </div>
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Manager Performance</h5>
+    </div>
+    <div class="card-body">
+        {% if managers.items %}
+            <div class="row">
+                {% for manager in managers.items %}
+                    {% if loop.index <= 4 %}
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between mb-3">
+                                        <div>
+                                            <h6>{{ manager.user.first_name }} {{ manager.user.last_name }}</h6>
+                                            <p class="text-muted mb-0">Team: {{ manager.operators|length }} operators</p>
+                                        </div>
+                                        <div>
+                                            <div class="d-inline-block rounded-circle p-2
+                                                {{ 'bg-success' if manager.performance_score >= 80 else ('bg-warning' if manager.performance_score >= 60 else 'bg-danger') }}
+                                                text-white" style="width: 40px; height: 40px; text-align: center;">
+                                                {{ manager.performance_score }}
                                             </div>
                                         </div>
-                                        <div class="card-footer bg-white border-top-0 text-end">
-                                            <a href="{{ url_for('main.view_manager', manager_id=manager.id) }}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <small class="text-muted d-block mb-1">Task Completion Rate</small>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-success" role="progressbar"
+                                                style="width: {{ manager.completion_rate }}%;"
+                                                aria-valuenow="{{ manager.completion_rate }}"
+                                                aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                        <div class="d-flex justify-content-between mt-1">
+                                            <small>{{ manager.completion_rate }}%</small>
+                                            <small class="text-muted">Target: 85%</small>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <small class="text-muted d-block mb-1">Active Tasks vs Completed</small>
+                                        <div class="d-flex justify-content-between text-center">
+                                            <div>
+                                                <h5 class="mb-0">{{ manager.active_tasks }}</h5>
+                                                <small class="text-muted">Active</small>
+                                            </div>
+                                            <div>
+                                                <h5 class="mb-0">{{ manager.completed_tasks }}</h5>
+                                                <small class="text-muted">Completed</small>
+                                            </div>
+                                            <div>
+                                                <h5 class="mb-0">{{ manager.total_tasks }}</h5>
+                                                <small class="text-muted">Total</small>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-
-                    {% if managers.total > 4 %}
-                        <div class="text-center mt-3">
-                            <a href="{{ url_for('statistics.users', role='manager') }}" class="btn btn-outline-primary">
-                                View All Manager Performance
-                            </a>
+                                <div class="card-footer bg-white border-top-0 text-end">
+                                    <a href="{{ url_for('owner.view_manager', manager_id=manager.id) }}"
+                                       class="btn btn-sm btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
                         </div>
                     {% endif %}
-                {% else %}
-                    <div class="text-center py-4">
-                        <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
-                        <p>No performance data available yet.</p>
-                        <p class="small text-muted">Add managers to view performance metrics.</p>
-                    </div>
-                {% endif %}
+                {% endfor %}
             </div>
-        </div>
+
+            {% if managers.total > 4 %}
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('statistics.users', role='manager') }}" class="btn btn-outline-primary">
+                        View All Manager Performance
+                    </a>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                <p>No performance data available yet.</p>
+                <p class="small text-muted">Add managers to view performance metrics.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
     </div>
 </div>
 {% endblock %}

@@ -589,8 +589,8 @@ def _get_driver_stats(driver_id):
     # Calculate average completion time (in minutes)
     completion_times = []
     for route in routes:
-        if route.status == RouteStatus.COMPLETED and route.actual_start_time and route.end_time:
-            duration = (route.end_time - route.actual_start_time).total_seconds() / 60  # in minutes
+        if route.status == RouteStatus.COMPLETED and route.start_time and route.end_time:
+            duration = (route.end_time - route.start_time).total_seconds() / 60  # in minutes
             completion_times.append(duration)
 
     avg_completion_time = sum(completion_times) / len(completion_times) if completion_times else 0

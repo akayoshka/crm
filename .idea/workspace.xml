@@ -4,7 +4,23 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b3fe698a-4de6-4cb7-9782-9fee7824eed1" name="Changes" comment="commit" />
+    <list default="true" id="b3fe698a-4de6-4cb7-9782-9fee7824eed1" name="Changes" comment="commit">
+      <change afterPath="$PROJECT_DIR$/templates/owner/operator_requests.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/views/owner.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/services.py" beforeDir="false" afterPath="$PROJECT_DIR$/services.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/base.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/base.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/owner/add_manager.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/add_manager.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/owner/company_settings.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/company_settings.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/owner/dashboard.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/dashboard.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/owner/edit_company.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/edit_company.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/owner/edit_manager.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/edit_manager.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/owner/managers.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/managers.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/owner/view_manager.html" beforeDir="false" afterPath="$PROJECT_DIR$/templates/owner/view_manager.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/views/driver.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/driver.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/views/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/views/main.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -192,38 +208,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1745198231756</updated>
-    </task>
-    <task id="LOCAL-00013" summary="commit">
-      <option name="closed" value="true" />
-      <created>1745482457062</created>
-      <option name="number" value="00013" />
-      <option name="presentableId" value="LOCAL-00013" />
-      <option name="project" value="LOCAL" />
-      <updated>1745482457062</updated>
-    </task>
-    <task id="LOCAL-00014" summary="commit">
-      <option name="closed" value="true" />
-      <created>1745482704430</created>
-      <option name="number" value="00014" />
-      <option name="presentableId" value="LOCAL-00014" />
-      <option name="project" value="LOCAL" />
-      <updated>1745482704430</updated>
-    </task>
-    <task id="LOCAL-00015" summary="commit">
-      <option name="closed" value="true" />
-      <created>1745483997079</created>
-      <option name="number" value="00015" />
-      <option name="presentableId" value="LOCAL-00015" />
-      <option name="project" value="LOCAL" />
-      <updated>1745483997079</updated>
-    </task>
-    <task id="LOCAL-00016" summary="commit">
-      <option name="closed" value="true" />
-      <created>1745500337129</created>
-      <option name="number" value="00016" />
-      <option name="presentableId" value="LOCAL-00016" />
-      <option name="project" value="LOCAL" />
-      <updated>1745500337129</updated>
     </task>
     <task id="LOCAL-00017" summary="commit">
       <option name="closed" value="true" />
@@ -585,7 +569,39 @@
       <option name="project" value="LOCAL" />
       <updated>1745929906560</updated>
     </task>
-    <option name="localTasksCounter" value="62" />
+    <task id="LOCAL-00062" summary="commit">
+      <option name="closed" value="true" />
+      <created>1746019790636</created>
+      <option name="number" value="00062" />
+      <option name="presentableId" value="LOCAL-00062" />
+      <option name="project" value="LOCAL" />
+      <updated>1746019790636</updated>
+    </task>
+    <task id="LOCAL-00063" summary="commit">
+      <option name="closed" value="true" />
+      <created>1746030272060</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1746030272061</updated>
+    </task>
+    <task id="LOCAL-00064" summary="commit">
+      <option name="closed" value="true" />
+      <created>1746053011857</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1746053011857</updated>
+    </task>
+    <task id="LOCAL-00065" summary="commit">
+      <option name="closed" value="true" />
+      <created>1746054055457</created>
+      <option name="number" value="00065" />
+      <option name="presentableId" value="LOCAL-00065" />
+      <option name="project" value="LOCAL" />
+      <updated>1746054055457</updated>
+    </task>
+    <option name="localTasksCounter" value="66" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

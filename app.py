@@ -104,6 +104,9 @@ def create_app(config_name='default'):
     from views.operator import operator as operator_blueprint
     app.register_blueprint(operator_blueprint)
 
+    from views.owner import owner as owner_blueprint
+    app.register_blueprint(owner_blueprint)
+
     return app
 
 

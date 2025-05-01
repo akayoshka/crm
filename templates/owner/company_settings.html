@@ -8,16 +8,22 @@
                 <i class="fas fa-user-tie"></i> Owner Panel
             </div>
             <div class="list-group list-group-flush">
-                <a href="{{ url_for('main.owner_dashboard') }}" class="list-group-item list-group-item-action">
+                <a href="{{ url_for('owner.dashboard') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </a>
-                <a href="{{ url_for('main.owner_managers') }}" class="list-group-item list-group-item-action">
+                <a href="{{ url_for('owner.managers') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-users"></i> Managers
                 </a>
                 <a href="{{ url_for('statistics.dashboard') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-chart-bar"></i> Reports
                 </a>
-                <a href="{{ url_for('main.owner_company_settings') }}" class="list-group-item list-group-item-action active">
+                <a href="{{ url_for('messages.inbox') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-envelope"></i> Messages
+                    {% if unread_messages_count and unread_messages_count > 0 %}
+                    <span class="badge bg-danger ms-2">{{ unread_messages_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('owner.company_settings') }}" class="list-group-item list-group-item-action active">
                     <i class="fas fa-cog"></i> Company Settings
                 </a>
             </div>
@@ -29,7 +35,7 @@
         <div class="card mb-4">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Company Details</h5>
-                <a href="{{ url_for('main.edit_company') }}" class="btn btn-light btn-sm">
+                <a href="{{ url_for('owner.edit_company') }}" class="btn btn-light btn-sm">
                     <i class="fas fa-edit"></i> Edit Details
                 </a>
             </div>
@@ -112,7 +118,7 @@
                 </div>
                 
                 <div class="text-center mt-3">
-                    <a href="{{ url_for('main.owner_managers') }}" class="btn btn-outline-primary me-2">Manage Team</a>
+                    <a href="{{ url_for('owner.managers') }}" class="btn btn-outline-primary me-2">Manage Team</a>
                     <a href="{{ url_for('statistics.users') }}" class="btn btn-outline-info">View Performance</a>
                 </div>
             </div>
@@ -124,7 +130,7 @@
                 <h5 class="mb-0">System Settings</h5>
             </div>
             <div class="card-body">
-                <form method="post" action="{{ url_for('main.update_company_settings') }}">
+                <form method="post" action="{{ url_for('owner.update_company_settings') }}">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3 form-check form-switch">
