@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-user-tie"></i> Owner Panel
+            </div>
+            <div class="list-group list-group-flush">
+                <a href="{{ url_for('owner.dashboard') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a href="{{ url_for('owner.managers') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-users"></i> Managers
+                </a>
+                <a href="{{ url_for('owner.operators') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-user-cog"></i> Operators
+                </a>
+                <a href="{{ url_for('owner.drivers') }}" class="list-group-item list-group-item-action active">
+                    <i class="fas fa-id-card"></i> Drivers
+                </a>
+                <a href="{{ url_for('statistics.dashboard') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-chart-line"></i> Statistics
+                </a>
+                <a href="{{ url_for('statistics.reports') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-file-alt"></i> Reports
+                </a>
+                <a href="{{ url_for('messages.inbox') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-envelope"></i> Messages
+                    {% if unread_messages_count and unread_messages_count > 0 %}
+                    <span class="badge bg-danger ms-2">{{ unread_messages_count }}</span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('owner.company_settings') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-cog"></i> Company Settings
+                </a>
+            </div>
+            {% if operator_requests_count and operator_requests_count > 0 %}
+            <div class="alert alert-info d-flex align-items-center" role="alert">
+                <div class="me-3">
+                    <i class="fas fa-bell fa-2x"></i>
+                </div>
+                <div>
+                    <h5 class="alert-heading mb-1">Operator Requests Pending</h5>
+                    <p class="mb-0">
+                        You have {{ operator_requests_count }} pending request{{ 's' if operator_requests_count != 1 else '' }} for new operators.
+                        <a href="{{ url_for('owner.operator_requests') }}" class="alert-link">View requests</a>
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="list-group list-group-flush">
+                <a href="{{ url_for('messages.chat', user_id=driver.user.id) }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-comment me-2"></i> Send Message
+                </a>
+                <a href="{{ url_for('owner.edit_driver', driver_id=driver.id) }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-edit me-2"></i> Edit Driver
+                </a>
+                {% if operator %}
+                <a href="{{ url_for('owner.view_operator', operator_id=operator.id) }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-user-cog me-2"></i> View Operator
+                </a>
+                {% endif %}
+                <a href="{{ url_for('routes.list_routes', driver_id=driver.id) }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-route me-2"></i> View Routes
+                </a>
+                {% if driver.user.is_active %}
+                <a href="#" class="list-group-item list-group-item-action text-danger" data-bs-toggle="modal" data-bs-target="#deactivateDriverModal">
+                    <i class="fas fa-user-slash me-2"></i> Deactivate Driver
+                </a>
+                {% else %}
+                <a href="#" class="list-group-item list-group-item-action text-success" data-bs-toggle="modal" data-bs-target="#activateDriverModal">
+                    <i class="fas fa-user-check me-2"></i> Activate Driver
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Driver Profile</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        {% if driver.user.profile_image %}
+                            <img src="{{ url_for('static', filename=driver.user.profile_image) }}" class="profile-image mb-3" alt="Profile Image">
+                        {% else %}
+                            <div class="rounded-circle bg-warning d-inline-flex justify-content-center align-items-center mb-3" style="width: 150px; height: 150px;">
+                                <span class="text-white" style="font-size: 60px;">{{ driver.user.first_name[0] }}{{ driver.user.last_name[0] }}</span>
+                            </div>
+                        {% endif %}
+                        <h4>{{ driver.user.first_name }} {{ driver.user.last_name }}</h4>
+                        <p class="text-muted mb-2">@{{ driver.user.username }}</p>
+
+                        <p>
+                            <span class="badge bg-warning">Driver</span>
+                            {% if driver.user.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </p>
+
+                        <div class="mt-3">
+                            <a href="mailto:{{ driver.user.email }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-envelope me-1"></i> {{ driver.user.email }}
+                            </a>
+                            {% if driver.user.phone %}
+                                <a href="tel:{{ driver.user.phone }}" class="btn btn-sm btn-outline-secondary mt-2">
+                                    <i class="fas fa-phone me-1"></i> {{ driver.user.phone }}
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-8">
+                        <h5 class="border-bottom pb-2">Driver Information</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-4 text-muted">License Number:</div>
+                            <div class="col-md-8">{{ driver.license_number }}</div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4 text-muted">Vehicle Info:</div>
+                            <div class="col-md-8">{{ driver.vehicle_info }}</div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4 text-muted">Reporting To:</div>
+                            <div class="col-md-8">
+                                {% if operator %}
+                                    <a href="{{ url_for('owner.view_operator', operator_id=operator.id) }}">
+                                        {{ operator.user.first_name }} {{ operator.user.last_name }}
+                                    </a>
+                                    <span class="badge bg-info ms-2">Operator</span>
+                                {% else %}
+                                    <span class="text-muted">Not assigned to an operator</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4 text-muted">Account Created:</div>
+                            <div class="col-md-8">{{ driver.user.created_at.strftime('%B %d, %Y') }}</div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4 text-muted">Last Login:</div>
+                            <div class="col-md-8">
+                                {% if driver.user.last_login %}
+                                    {{ driver.user.last_login.strftime('%B %d, %Y at %H:%M') }}
+                                {% else %}
+                                    <span class="text-muted">Never</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <h5 class="border-bottom pb-2 mt-4">Performance Metrics</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-4 text-muted">Route Completion:</div>
+                            <div class="col-md-8">
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-{{ 'success' if completion_rate >= 70 else 'warning' if completion_rate >= 40 else 'danger' }}"
+                                         role="progressbar"
+                                         style="width: {{ completion_rate }}%;"
+                                         aria-valuenow="{{ completion_rate }}"
+                                         aria-valuemin="0"
+                                         aria-valuemax="100">
+                                    </div>
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    {{ completed_routes }}/{{ route_count }} routes ({{ completion_rate }}% completion rate)
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4 text-muted">On-Time Delivery:</div>
+                            <div class="col-md-8">
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-{{ 'success' if on_time_rate >= 70 else 'warning' if on_time_rate >= 40 else 'danger' }}"
+                                         role="progressbar"
+                                         style="width: {{ on_time_rate }}%;"
+                                         aria-valuenow="{{ on_time_rate }}"
+                                         aria-valuemin="0"
+                                         aria-valuemax="100">
+                                    </div>
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    {{ on_time_rate }}% of routes completed on time
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4 text-muted">Average Duration:</div>
+                            <div class="col-md-8">
+                                {% if avg_duration > 0 %}
+                                    <span class="badge bg-info">{{ avg_duration }} hours</span>
+                                    <small class="text-muted ms-2">average time to complete a route</small>
+                                {% else %}
+                                    <span class="text-muted">No completed routes</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if routes %}
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Routes</h5>
+                <a href="{{ url_for('routes.list_routes', driver_id=driver.id) }}" class="btn btn-light btn-sm">
+                    <i class="fas fa-list"></i> View All Routes
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for route in routes %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-1">{{ route.start_point }} → {{ route.end_point }}</h6>
+                                <span class="badge
+                                    {% if route.status.value == 'PLANNED' %}bg-info
+                                    {% elif route.status.value == 'IN_PROGRESS' %}bg-warning
+                                    {% elif route.status.value == 'COMPLETED' %}bg-success
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ route.status.value|replace('_', ' ')|title }}
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted">Distance: {{ route.distance|round(1) if route.distance else 'N/A' }} km</small>
+                                    {% if route.estimated_time %}
+                                        <small class="text-muted ms-3">Est. Time: {{ route.estimated_time }} min</small>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">
+                                    {% if route.start_time %}
+                                        Started: {{ route.start_time.strftime('%b %d, %H:%M') }}
+                                    {% else %}
+                                        Planned
+                                    {% endif %}
+                                </small>
+                            </div>
+                            {% if route.task %}
+                                <small class="text-muted mt-2 d-block">
+                                    Task: <a href="{{ url_for('tasks.view_task', task_id=route.task.id) }}">{{ route.task.title }}</a>
+                                </small>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                {% if activity_logs %}
+                    <div class="timeline">
+                        {% for log in activity_logs %}
+                            <div class="timeline-item mb-3 border-start ps-3 border-4 border-{{ 'primary' if log.action_type.value == 'CREATE' else 'success' if log.action_type.value == 'UPDATE' else 'danger' if log.action_type.value == 'DELETE' else 'info' }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-{{ 'primary' if log.action_type.value == 'CREATE' else 'success' if log.action_type.value == 'UPDATE' else 'danger' if log.action_type.value == 'DELETE' else 'info' }} me-2">
+                                            {{ log.action_type.value }}
+                                        </span>
+                                        <span>{{ log.description }}</span>
+                                    </div>
+                                    <small class="text-muted">{{ log.timestamp.strftime('%b %d, %H:%M') }}</small>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                        <p>No recent activity logs for this driver.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activate Driver Modal -->
+<div class="modal fade" id="activateDriverModal" tabindex="-1" aria-labelledby="activateDriverModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="activateDriverModalLabel">Activate Driver</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> You are about to activate
+                    <strong>{{ driver.user.first_name }} {{ driver.user.last_name }}</strong>'s account.
+                </div>
+                <p>
+                    This will allow the driver to log in and perform their duties.
+                    Are you sure you want to proceed?
+                </p>
+            </div>
+            <form action="{{ url_for('owner.activate_driver', driver_id=driver.id) }}" method="post">
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Activate Driver</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Deactivate Driver Modal -->
+<div class="modal fade" id="deactivateDriverModal" tabindex="-1" aria-labelledby="deactivateDriverModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deactivateDriverModalLabel">Deactivate Driver</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> Warning: You are about to deactivate
+                    <strong>{{ driver.user.first_name }} {{ driver.user.last_name }}</strong>'s account.
+                </div>
+                <p>
+                    This will prevent the driver from logging in and performing their duties.
+                    Are you sure you want to proceed?
+                </p>
+                
+                {% if active_routes > 0 %}
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i> <strong>Warning:</strong> This driver has {{ active_routes }} active route(s).
+                    Deactivating this account may disrupt ongoing deliveries.
+                </div>
+                {% endif %}
+            </div>
+            <form action="{{ url_for('owner.deactivate_driver', driver_id=driver.id) }}" method="post">
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Deactivate Driver</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

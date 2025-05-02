@@ -324,3 +324,36 @@ class OperatorEditForm(EditUserForm):
         super(OperatorEditForm, self).__init__(*args, **kwargs)
         # Default empty choices, will be set in the route
         self.manager_id.choices = [(0, "-- Select Manager --")]
+
+
+class DriverForm(UserForm):
+    """
+    Form for creating or editing a driver
+    """
+    license_number = StringField('License Number', validators=[DataRequired(), Length(max=64)])
+    vehicle_info = StringField('Vehicle Information', validators=[DataRequired(), Length(max=256)])
+    operator_id = SelectField('Operator', coerce=int, validators=[Optional()],
+                            render_kw={"class": "form-select"})
+
+    def __init__(self, *args, **kwargs):
+        super(DriverForm, self).__init__(*args, **kwargs)
+        self.role.data = UserRole.DRIVER.value
+
+        # Set default choice for operator_id
+        if not self.operator_id.choices:
+            self.operator_id.choices = [(0, "-- Select Operator --")]
+
+
+class DriverEditForm(EditUserForm):
+    """
+    Form for editing driver users
+    """
+    license_number = StringField('License Number', validators=[DataRequired(), Length(max=64)])
+    vehicle_info = StringField('Vehicle Information', validators=[DataRequired(), Length(max=256)])
+    operator_id = SelectField('Operator', coerce=int, validators=[Optional()],
+                            render_kw={"class": "form-select"})
+
+    def __init__(self, *args, **kwargs):
+        super(DriverEditForm, self).__init__(*args, **kwargs)
+        # Default empty choices, will be set in the route
+        self.operator_id.choices = [(0, "-- Select Operator --")]

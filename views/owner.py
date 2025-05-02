@@ -3,8 +3,11 @@ import traceback
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
+
+from flask_wtf import FlaskForm
 from sqlalchemy import func, or_, and_
-from wtforms import SelectField
+from wtforms import SelectField, StringField
+from wtforms.validators import DataRequired, Length, Optional
 
 from models import Message, ActionType
 
@@ -14,7 +17,7 @@ from models import (
     Task, TaskStatus, Route, RouteStatus, ActionType, Log
 )
 from utils import role_required, log_action
-from forms import CompanyForm, UserForm, EditUserForm, OperatorForm, OperatorEditForm
+from forms import CompanyForm, UserForm, EditUserForm, OperatorForm, OperatorEditForm, DriverForm
 
 owner = Blueprint('owner', __name__, url_prefix='/owner')
 
@@ -1395,3 +1398,601 @@ def delete_operator(operator_id):
         flash(f'Error deleting operator: {str(e)}', "danger")
 
     return redirect(url_for('owner.operators'))
+
+
+@owner.route('/dashboard/owner/drivers')
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def drivers():
+    """
+    Drivers list for company owner
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+    page = request.args.get("page", 1, type=int)
+
+    # Get all drivers for this company
+    drivers_query = Driver.query.filter_by(company_id=company_id)
+
+    # Order by name
+    drivers_query = drivers_query.join(User, Driver.id == User.id).order_by(User.first_name, User.last_name)
+
+    # Paginate results
+    drivers = drivers_query.paginate(page=page, per_page=10)
+
+    # Calculate performance metrics for each driver
+    for driver in drivers.items:
+        # Get routes assigned to this driver
+        routes = Route.query.filter_by(driver_id=driver.id, company_id=company_id).all()
+        total_routes = len(routes)
+
+        # Calculate completed routes
+        completed_routes = sum(1 for r in routes if r.status == RouteStatus.COMPLETED)
+
+        # Calculate active routes (in progress and planned)
+        active_routes = sum(1 for r in routes if r.status in [RouteStatus.IN_PROGRESS, RouteStatus.PLANNED])
+
+        # Calculate completion rate
+        completion_rate = (completed_routes / total_routes * 100) if total_routes > 0 else 0
+
+        # Calculate on-time delivery rate
+        on_time_deliveries = 0
+        total_completed_routes = 0
+
+        for route in routes:
+            if route.status == RouteStatus.COMPLETED and route.end_time and route.start_time:
+                total_completed_routes += 1
+                # Add 30 minutes buffer for on-time calculation
+                from datetime import timedelta
+                buffer = timedelta(minutes=30)
+
+                if route.estimated_time:
+                    planned_end_time = route.start_time + timedelta(minutes=route.estimated_time)
+                    if route.end_time <= (planned_end_time + buffer):
+                        on_time_deliveries += 1
+
+        on_time_rate = (on_time_deliveries / total_completed_routes * 100) if total_completed_routes > 0 else 0
+
+        # Calculate overall performance score
+        performance_factors = []
+
+        if total_routes > 0:
+            performance_factors.append(completion_rate)
+
+        if total_completed_routes > 0:
+            performance_factors.append(on_time_rate)
+
+        # Calculate overall score
+        performance_score = int(sum(performance_factors) / len(performance_factors)) if performance_factors else 0
+
+        # Attach metrics to driver object
+        driver.active_routes = active_routes
+        driver.completed_routes = completed_routes
+        driver.total_routes = total_routes
+        driver.completion_rate = round(completion_rate, 1)
+        driver.performance_score = performance_score
+        driver.on_time_rate = round(on_time_rate, 1)
+
+    # Get unread messages count
+    unread_messages_count = Message.query.filter_by(
+        recipient_id=current_user.id,
+        is_read=False
+    ).count()
+
+    # Get operator request count
+    operator_requests_count = Message.query.filter(
+        Message.recipient_id == current_user.id,
+        Message.company_id == company_id,
+        Message.content.like('%requests a new operator account%'),
+        Message.is_read == False
+    ).count()
+
+    log_action(ActionType.VIEW, "Viewed drivers list", db)
+
+    return render_template(
+        'owner/drivers.html',
+        title='Company Drivers',
+        drivers=drivers,
+        unread_messages_count=unread_messages_count,
+        operator_requests_count=operator_requests_count
+    )
+
+
+@owner.route('/dashboard/owner/drivers/add', methods=['GET', 'POST'])
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def add_driver():
+    """
+    Add a new driver
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Create form
+    form = DriverForm()
+
+    # Get available operators for this company
+    operators = Operator.query.filter_by(company_id=company_id).all()
+    operator_choices = [(o.id, f"{o.user.first_name} {o.user.last_name}") for o in operators]
+    operator_choices.insert(0, (0, "-- Select Operator --"))
+
+    # Set operator choices in the form
+    form.operator_id.choices = operator_choices
+
+    if form.validate_on_submit():
+        try:
+            # Create user with driver role
+            user = User(
+                username=form.username.data,
+                email=form.email.data,
+                first_name=form.first_name.data,
+                last_name=form.last_name.data,
+                phone=form.phone.data,
+                role=UserRole.DRIVER,
+                is_active=form.is_active.data
+            )
+
+            # Set password
+            user.set_password(form.password.data)
+
+            # Handle profile image if provided
+            if form.profile_image.data:
+                from utils import save_profile_image
+                user.profile_image = save_profile_image(form.profile_image.data)
+
+            db.session.add(user)
+            db.session.flush()  # Get user ID
+
+            # Create driver relationship with company and operator
+            operator_id = form.operator_id.data if form.operator_id.data != 0 else None
+            driver = Driver(
+                id=user.id,
+                company_id=company_id,
+                operator_id=operator_id,
+                license_number=form.license_number.data,
+                vehicle_info=form.vehicle_info.data
+            )
+            db.session.add(driver)
+
+            db.session.commit()
+            log_action(ActionType.CREATE, f"Created driver {user.username}", db)
+
+            flash(f'Driver {user.first_name} {user.last_name} created successfully!', "success")
+            return redirect(url_for('owner.drivers'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating driver: {str(e)}', "danger")
+
+    # Get unread messages count
+    unread_messages_count = Message.query.filter_by(
+        recipient_id=current_user.id,
+        is_read=False
+    ).count()
+
+    # Get operator request count
+    operator_requests_count = Message.query.filter(
+        Message.recipient_id == current_user.id,
+        Message.company_id == company_id,
+        Message.content.like('%requests a new operator account%'),
+        Message.is_read == False
+    ).count()
+
+    return render_template(
+        'owner/add_driver.html',
+        title='Add New Driver',
+        form=form,
+        UserRole=UserRole,
+        unread_messages_count=unread_messages_count,
+        operator_requests_count=operator_requests_count
+    )
+
+
+@owner.route('/dashboard/owner/drivers/<int:driver_id>/view')
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def view_driver(driver_id):
+    """
+    View details of a specific driver for company owner
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Get driver
+    driver = Driver.query.get_or_404(driver_id)
+
+    # Check if the driver belongs to this company
+    if driver.company_id != company_id:
+        flash('This driver is not part of your company.', "danger")
+        return redirect(url_for('owner.dashboard'))
+
+    # Get activity logs for this driver
+    activity_logs = Log.query.filter_by(
+        user_id=driver.id
+    ).order_by(Log.timestamp.desc()).limit(10).all()
+
+    # Get operator for this driver
+    operator = None
+    if driver.operator_id:
+        operator = Operator.query.get(driver.operator_id)
+
+    # Get routes assigned to this driver - используем start_time вместо created_at
+    routes = Route.query.filter_by(
+        driver_id=driver.id
+    ).order_by(Route.start_time.desc()).limit(5).all()
+
+    # Get performance metrics
+    route_count = Route.query.filter_by(driver_id=driver.id).count()
+    completed_routes = Route.query.filter_by(
+        driver_id=driver.id, status=RouteStatus.COMPLETED
+    ).count()
+    completion_rate = (completed_routes / route_count * 100) if route_count > 0 else 0
+
+    # Get active routes count for warning in deactivation modal
+    active_routes = Route.query.filter(
+        Route.driver_id == driver_id,
+        Route.status.in_([RouteStatus.PLANNED, RouteStatus.IN_PROGRESS])
+    ).count()
+
+    # Calculate on-time rate
+    on_time_deliveries = 0
+    total_completed_routes = 0
+
+    for route in Route.query.filter_by(driver_id=driver.id, status=RouteStatus.COMPLETED).all():
+        if route.end_time and route.start_time:
+            total_completed_routes += 1
+            from datetime import timedelta
+            buffer = timedelta(minutes=30)
+
+            if route.estimated_time:
+                planned_end_time = route.start_time + timedelta(minutes=route.estimated_time)
+                if route.end_time <= (planned_end_time + buffer):
+                    on_time_deliveries += 1
+
+    on_time_rate = (on_time_deliveries / total_completed_routes * 100) if total_completed_routes > 0 else 0
+
+    # Get average route duration for completed routes (in hours)
+    avg_duration = 0
+    total_duration_minutes = 0
+
+    for route in Route.query.filter_by(driver_id=driver.id, status=RouteStatus.COMPLETED).all():
+        if route.end_time and route.start_time:
+            duration = (route.end_time - route.start_time).total_seconds() / 60  # in minutes
+            total_duration_minutes += duration
+
+    if total_completed_routes > 0:
+        avg_duration = round(total_duration_minutes / total_completed_routes / 60, 1)  # в часах
+
+    # Get unread messages count
+    unread_messages_count = Message.query.filter_by(
+        recipient_id=current_user.id,
+        is_read=False
+    ).count()
+
+    # Get operator request count
+    operator_requests_count = Message.query.filter(
+        Message.recipient_id == current_user.id,
+        Message.company_id == company_id,
+        Message.content.like('%requests a new operator account%'),
+        Message.is_read == False
+    ).count()
+
+    log_action(ActionType.VIEW, f"Viewed driver {driver.user.username}", db)
+
+    return render_template(
+        'owner/view_driver.html',
+        title=f'Driver: {driver.user.first_name} {driver.user.last_name}',
+        driver=driver,
+        activity_logs=activity_logs,
+        operator=operator,
+        routes=routes,
+        route_count=route_count,
+        completed_routes=completed_routes,
+        completion_rate=round(completion_rate, 1),
+        on_time_rate=round(on_time_rate, 1),
+        avg_duration=avg_duration,
+        active_routes=active_routes,
+        unread_messages_count=unread_messages_count,
+        operator_requests_count=operator_requests_count
+    )
+
+
+@owner.route('/dashboard/owner/drivers/<int:driver_id>/edit', methods=['GET', 'POST'])
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def edit_driver(driver_id):
+    """
+    Edit driver details
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Get driver
+    driver = Driver.query.get_or_404(driver_id)
+
+    # Ensure driver belongs to owner's company
+    if driver.company_id != company_id:
+        flash('You do not have permission to edit this driver.', "danger")
+        return redirect(url_for('owner.drivers'))
+
+    # Get available operators for this company
+    operators = Operator.query.filter_by(company_id=company_id).all()
+    operator_choices = [(str(o.id), f"{o.user.first_name} {o.user.last_name}") for o in operators]
+    operator_choices.insert(0, ("0", "-- Select Operator --"))
+
+    # Create form (exclude validators for role field)
+    form = EditUserForm(
+        original_username=driver.user.username,
+        original_email=driver.user.email
+    )
+
+    # Create form fields for license and vehicle info
+    class F(FlaskForm):
+        license_number = StringField('License Number', validators=[DataRequired(), Length(max=64)])
+        vehicle_info = StringField('Vehicle Information', validators=[DataRequired(), Length(max=256)])
+        operator_id = SelectField('Operator', coerce=str, validators=[Optional()], choices=operator_choices)
+
+    for field in F():
+        setattr(form, field.name, field)
+
+    # Remove role field from form validation by setting it to not required
+    # And populate its choices with the fixed value
+    if hasattr(form, 'role'):
+        form.role.validators = []
+        form.role.choices = [(UserRole.DRIVER.value, 'Driver')]
+        form.role.data = UserRole.DRIVER.value
+
+    # Populate form with current values on GET
+    if request.method == 'GET':
+        form.username.data = driver.user.username
+        form.email.data = driver.user.email
+        form.first_name.data = driver.user.first_name
+        form.last_name.data = driver.user.last_name
+        form.phone.data = driver.user.phone
+        form.is_active.data = driver.user.is_active
+        form.license_number.data = driver.license_number
+        form.vehicle_info.data = driver.vehicle_info
+
+    # Process form submission
+    if request.method == 'POST':
+        current_app.logger.info(f"Form submitted: {request.form}")
+        current_app.logger.info(f"operator_id from form: {request.form.get('operator_id')}")
+
+        # Force role to be valid to avoid validation errors
+        if hasattr(form, 'role'):
+            form.role.data = UserRole.DRIVER.value
+
+        if form.validate_on_submit():
+            try:
+                # Update user fields from form
+                driver.user.username = form.username.data
+                driver.user.email = form.email.data
+                driver.user.first_name = form.first_name.data
+                driver.user.last_name = form.last_name.data
+                driver.user.phone = form.phone.data
+                driver.user.is_active = form.is_active.data
+
+                # Update driver-specific fields
+                driver.license_number = form.license_number.data
+                driver.vehicle_info = form.vehicle_info.data
+
+                # Handle operator_id separately
+                operator_id_str = request.form.get('operator_id', '0')
+                current_app.logger.info(f"Processing operator_id: {operator_id_str}")
+
+                if operator_id_str == '0':
+                    driver.operator_id = None
+                    current_app.logger.info("Setting operator_id to None")
+                else:
+                    try:
+                        operator_id = int(operator_id_str)
+                        # Verify that this operator exists and belongs to the same company
+                        operator = Operator.query.filter_by(id=operator_id, company_id=company_id).first()
+                        if operator:
+                            driver.operator_id = operator_id
+                            current_app.logger.info(f"Setting operator_id to {operator_id}")
+                        else:
+                            driver.operator_id = None
+                            current_app.logger.warning(f"Operator {operator_id} not found or not in same company")
+                    except (ValueError, TypeError) as e:
+                        driver.operator_id = None
+                        current_app.logger.error(f"Error converting operator_id: {str(e)}")
+
+                # Handle profile image if provided
+                if form.profile_image.data:
+                    current_app.logger.info("Processing profile image")
+                    from utils import save_profile_image
+                    profile_image = save_profile_image(form.profile_image.data)
+                    if profile_image:
+                        driver.user.profile_image = profile_image
+                        current_app.logger.info(f"Profile image saved: {profile_image}")
+                    else:
+                        current_app.logger.warning("Failed to save profile image")
+
+                # Save changes
+                current_app.logger.info("Committing changes to database")
+                db.session.commit()
+                log_action(ActionType.UPDATE, f"Updated driver {driver.user.username}", db)
+
+                flash(f'Driver {driver.user.first_name} {driver.user.last_name} updated successfully!', "success")
+                return redirect(url_for('owner.view_driver', driver_id=driver_id))
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f"Error updating driver: {str(e)}")
+                current_app.logger.error(traceback.format_exc())
+                flash(f'Error updating driver: {str(e)}', "danger")
+        else:
+            current_app.logger.error(f"Form validation errors: {form.errors}")
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"{field}: {error}", "danger")
+
+    # Get unread messages count for UI
+    unread_messages_count = Message.query.filter_by(
+        recipient_id=current_user.id,
+        is_read=False
+    ).count()
+
+    # Get operator request count for UI
+    operator_requests_count = Message.query.filter(
+        Message.recipient_id == current_user.id,
+        Message.company_id == company_id,
+        Message.content.like('%requests a new operator account%'),
+        Message.is_read == False
+    ).count()
+
+    # Current operator_id for the template
+    current_operator_id = str(driver.operator_id) if driver.operator_id else "0"
+    current_app.logger.info(f"Rendering template with current_operator_id: {current_operator_id}")
+
+    return render_template(
+        'owner/edit_driver.html',
+        title='Edit Driver',
+        form=form,
+        driver=driver,
+        unread_messages_count=unread_messages_count,
+        operator_requests_count=operator_requests_count,
+        operator_choices=operator_choices,
+        current_operator_id=current_operator_id
+    )
+
+
+@owner.route('/dashboard/owner/drivers/<int:driver_id>/delete', methods=['POST'])
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def delete_driver(driver_id):
+    """
+    Delete a driver
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Get driver
+    driver = Driver.query.get_or_404(driver_id)
+
+    # Ensure driver belongs to owner's company
+    if driver.company_id != company_id:
+        flash('You do not have permission to delete this driver.', "danger")
+        return redirect(url_for('owner.drivers'))
+
+    # Check if driver has active routes
+    active_routes = Route.query.filter(
+        Route.driver_id == driver_id,
+        Route.status.in_([RouteStatus.PLANNED, RouteStatus.IN_PROGRESS])
+    ).count()
+
+    if active_routes > 0:
+        flash('Cannot delete driver with active routes. Please reassign or complete routes first.', "danger")
+        return redirect(url_for('owner.view_driver', driver_id=driver_id))
+
+    try:
+        # Get user for log
+        username = driver.user.username
+
+        # Delete the driver (and user cascade)
+        db.session.delete(driver.user)
+        db.session.commit()
+
+        log_action(ActionType.DELETE, f"Deleted driver {username}", db)
+        flash(f'Driver {username} deleted successfully!', "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting driver: {str(e)}', "danger")
+
+    return redirect(url_for('owner.drivers'))
+
+
+@owner.route('/dashboard/owner/drivers/<int:driver_id>/activate', methods=['POST'])
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def activate_driver(driver_id):
+    """
+    Activate a driver account
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Get driver
+    driver = Driver.query.get_or_404(driver_id)
+
+    # Ensure driver belongs to owner's company
+    if driver.company_id != company_id:
+        flash('You do not have permission to modify this driver.', "danger")
+        return redirect(url_for('owner.drivers'))
+
+    try:
+        # Activate the driver
+        driver.user.is_active = True
+        db.session.commit()
+        log_action(ActionType.UPDATE, f"Activated driver {driver.user.username}", db)
+
+        flash(f"Driver {driver.user.first_name} {driver.user.last_name} has been activated successfully.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error activating driver: {str(e)}", "danger")
+
+    return redirect(url_for('owner.view_driver', driver_id=driver_id))
+
+
+@owner.route('/dashboard/owner/drivers/<int:driver_id>/deactivate', methods=['POST'])
+@login_required
+@role_required(UserRole.COMPANY_OWNER.value)
+def deactivate_driver(driver_id):
+    """
+    Deactivate a driver account
+    """
+    if not current_user.company_owner or not current_user.company_owner.company_id:
+        flash('You are not associated with a company.', "danger")
+        return redirect(url_for('main.index'))
+
+    company_id = current_user.company_owner.company_id
+
+    # Get driver
+    driver = Driver.query.get_or_404(driver_id)
+
+    # Ensure driver belongs to owner's company
+    if driver.company_id != company_id:
+        flash('You do not have permission to modify this driver.', "danger")
+        return redirect(url_for('owner.drivers'))
+
+    # Check for active routes
+    active_routes = Route.query.filter(
+        Route.driver_id == driver_id,
+        Route.status.in_([RouteStatus.PLANNED, RouteStatus.IN_PROGRESS])
+    ).count()
+
+    try:
+        # Deactivate the driver
+        driver.user.is_active = False
+        db.session.commit()
+        log_action(ActionType.UPDATE, f"Deactivated driver {driver.user.username}", db)
+
+        if active_routes > 0:
+            flash(
+                f"Driver {driver.user.first_name} {driver.user.last_name} has been deactivated, but has {active_routes} active route(s) that may be affected.",
+                "warning")
+        else:
+            flash(f"Driver {driver.user.first_name} {driver.user.last_name} has been deactivated successfully.",
+                  "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deactivating driver: {str(e)}", "danger")
+
+    return redirect(url_for('owner.view_driver', driver_id=driver_id))

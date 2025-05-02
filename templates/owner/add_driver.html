@@ -14,10 +14,10 @@
                 <a href="{{ url_for('owner.managers') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-users"></i> Managers
                 </a>
-                <a href="{{ url_for('owner.operators') }}" class="list-group-item list-group-item-action active">
+                <a href="{{ url_for('owner.operators') }}" class="list-group-item list-group-item-action">
                     <i class="fas fa-user-cog"></i> Operators
                 </a>
-                <a href="{{ url_for('owner.drivers') }}" class="list-group-item list-group-item-action">
+                <a href="{{ url_for('owner.drivers') }}" class="list-group-item list-group-item-action active">
                     <i class="fas fa-id-card"></i> Drivers
                 </a>
                 <a href="{{ url_for('statistics.dashboard') }}" class="list-group-item list-group-item-action">
@@ -39,7 +39,7 @@
     <div class="col-md-9">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">{% if operator %}Edit{% else %}Add{% endif %} Operator</h5>
+                <h5 class="mb-0">Add New Driver</h5>
             </div>
             <div class="card-body">
                 <form method="post" enctype="multipart/form-data">
@@ -99,35 +99,53 @@
                             </div>
                         </div>
                         <div class="col-md-6">
-                            {% if not operator %}
-                                <div class="mb-3">
-                                    {{ form.password.label(class="form-label") }}
-                                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
-                                    {% for error in form.password.errors %}
-                                        <div class="invalid-feedback">{{ error }}</div>
-                                    {% endfor %}
-                                    <small class="form-text text-muted">Password must be at least 8 characters long.</small>
-                                </div>
-                                <div class="mb-3">
-                                    {{ form.password2.label(class="form-label") }}
-                                    {{ form.password2(class="form-control" + (" is-invalid" if form.password2.errors else "")) }}
-                                    {% for error in form.password2.errors %}
-                                        <div class="invalid-feedback">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
+                            <div class="mb-3">
+                                {{ form.password.label(class="form-label") }}
+                                {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else "")) }}
+                                {% for error in form.password.errors %}
+                                    <div class="invalid-feedback">{{ error }}</div>
+                                {% endfor %}
+                                <small class="form-text text-muted">Password must be at least 8 characters long.</small>
+                            </div>
+                            <div class="mb-3">
+                                {{ form.password2.label(class="form-label") }}
+                                {{ form.password2(class="form-control" + (" is-invalid" if form.password2.errors else "")) }}
+                                {% for error in form.password2.errors %}
+                                    <div class="invalid-feedback">{{ error }}</div>
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
-
-                    <!-- Manager Selection Field (Manually rendered) -->
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.license_number.label(class="form-label") }}
+                                {{ form.license_number(class="form-control" + (" is-invalid" if form.license_number.errors else "")) }}
+                                {% for error in form.license_number.errors %}
+                                    <div class="invalid-feedback">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.vehicle_info.label(class="form-label") }}
+                                {{ form.vehicle_info(class="form-control" + (" is-invalid" if form.vehicle_info.errors else "")) }}
+                                {% for error in form.vehicle_info.errors %}
+                                    <div class="invalid-feedback">{{ error }}</div>
+                                {% endfor %}
+                                <small class="form-text text-muted">Enter vehicle model, year, and other relevant information</small>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="mb-3">
-                        <label for="manager_id" class="form-label">Manager</label>
-                        <select class="form-select" id="manager_id" name="manager_id">
-                            {% for id, name in manager_choices %}
-                                <option value="{{ id }}" {% if id == current_manager_id %}selected{% endif %}>{{ name }}</option>
-                            {% endfor %}
-                        </select>
-                        <small class="form-text text-muted">Select the manager this operator will report to.</small>
+                        {{ form.operator_id.label(class="form-label") }}
+                        {{ form.operator_id(class="form-select" + (" is-invalid" if form.operator_id.errors else "")) }}
+                        {% for error in form.operator_id.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                        <small class="form-text text-muted">Select the operator this driver will report to.</small>
                     </div>
                     
                     <div class="mb-3">
@@ -137,13 +155,6 @@
                             <div class="invalid-feedback">{{ error }}</div>
                         {% endfor %}
                         <small class="form-text text-muted">Supported formats: JPG, PNG, JPEG. Maximum size: 5MB.</small>
-                        
-                        {% if operator and operator.user.profile_image %}
-                            <div class="mt-2">
-                                <img src="{{ url_for('static', filename=operator.user.profile_image) }}" alt="Current profile image" class="profile-image-sm">
-                                <small class="ms-2">Current profile image</small>
-                            </div>
-                        {% endif %}
                     </div>
                     
                     <div class="form-check mb-3">
@@ -151,17 +162,12 @@
                         {{ form.is_active.label(class="form-check-label") }}
                     </div>
                     
-                    <div class="mb-3">
-                        <label class="form-label">Operator Role</label>
-                        <div class="form-control bg-light">Operator</div>
-                        <input type="hidden" name="role" value="operator">
-                    </div>
+                    <input type="hidden" name="role" value="{{ UserRole.DRIVER.value }}">
+                    <input type="hidden" name="company_id" value="{{ current_user.company_owner.company_id }}">
                     
                     <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('owner.operators') }}" class="btn btn-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">
-                            {% if operator %}Update{% else %}Create{% endif %} Operator
-                        </button>
+                        <a href="{{ url_for('owner.drivers') }}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create Driver</button>
                     </div>
                 </form>
             </div>
