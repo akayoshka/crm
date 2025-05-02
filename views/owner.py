@@ -686,18 +686,24 @@ def approve_operator_request(message_id):
     manager_id = message.sender_id
 
     # Extract request details from message content
-    # The message has a format like:
-    # Manager <name> requests a new operator account:
-    # Name: <first_name> <last_name>
-    # Email: <email>
-    # Phone: <phone or 'Not provided'>
-    # Justification: <text>
-
-    # Extract details from the message content
     lines = message.content.split('\n')
     name_line = next((line for line in lines if line.startswith('Name:')), None)
     email_line = next((line for line in lines if line.startswith('Email:')), None)
     phone_line = next((line for line in lines if line.startswith('Phone:')), None)
+
+    # Extract manager ID from the message content
+    manager_id_line = next((line for line in lines if line.startswith('Manager ID:')), None)
+    if manager_id_line:
+        # Extract manager ID from the line
+        try:
+            extracted_manager_id = int(manager_id_line.replace('Manager ID:', '').strip())
+            # Verify that this manager exists
+            manager = Manager.query.get(extracted_manager_id)
+            if manager:
+                manager_id = extracted_manager_id
+        except (ValueError, TypeError):
+            # If extraction fails, use the sender_id as fallback
+            pass
 
     if name_line and email_line:
         # Extract name, email and phone
@@ -717,18 +723,18 @@ def approve_operator_request(message_id):
         # Flash success message
         flash('Request approved. Please complete the operator creation form.', "success")
 
-        # Redirect to create operator form with pre-filled data
+        # Redirect to owner's add_operator form with pre-filled data
         return redirect(url_for(
-            'admin.create_operator',
-            manager_id=manager_id,
+            'owner.add_operator',
             first_name=first_name,
             last_name=last_name,
             email=email,
-            phone=phone
+            phone=phone,
+            manager_id=manager_id
         ))
     else:
         flash('Could not extract information from the request. Please create operator manually.', "warning")
-        return redirect(url_for('admin.create_operator'))
+        return redirect(url_for('owner.add_operator'))
 
 
 @owner.route('/dashboard/owner/operator-requests/<int:message_id>/reject', methods=['POST'])
@@ -1146,6 +1152,51 @@ def add_operator():
 
     # Set manager choices in the form
     form.manager_id.choices = manager_choices
+
+    # Prefill form from request parameters if provided (GET request or form validation fails)
+    if request.method == 'GET' or not form.validate():
+        # Get parameters from request
+        first_name = request.args.get('first_name', '')
+        last_name = request.args.get('last_name', '')
+        email = request.args.get('email', '')
+        phone = request.args.get('phone', '')
+        manager_id = request.args.get('manager_id', 0)
+
+        # Only prefill if the form fields are empty (to preserve user edits)
+        if not form.first_name.data:
+            form.first_name.data = first_name
+        if not form.last_name.data:
+            form.last_name.data = last_name
+        if not form.email.data:
+            form.email.data = email
+        if not form.phone.data:
+            form.phone.data = phone
+        if not form.manager_id.data and manager_id:
+            # Verify manager_id is valid
+            try:
+                manager_id = int(manager_id)
+                # Check if this manager ID is in our choices
+                if any(manager_id == choice[0] for choice in manager_choices):
+                    form.manager_id.data = manager_id
+            except (ValueError, TypeError):
+                pass
+
+        # Generate a suggested username based on first and last name if provided
+        if first_name and last_name and not form.username.data:
+            # Create username like john.doe or john.doe1 if john.doe exists
+            import re
+            # Convert to lowercase and replace spaces/special chars
+            base_username = f"{first_name.lower()}.{last_name.lower()}"
+            base_username = re.sub(r'[^a-z.]', '', base_username)
+
+            # Check if username exists
+            if base_username:
+                username = base_username
+                counter = 1
+                while User.query.filter_by(username=username).first():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+                form.username.data = username
 
     if form.validate_on_submit():
         try:

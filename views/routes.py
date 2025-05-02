@@ -142,14 +142,20 @@ def create_route():
 
     # Get task ID if provided
     task_id = request.args.get('task_id', None, type=int)
+
+    # Pre-fill task data if task_id is provided
+    task = None
     if task_id:
         task = Task.query.get_or_404(task_id)
-        if form.task_id:
+        # Only set form task_id if the field exists in the form
+        if hasattr(form, 'task_id'):
             form.task_id.data = task_id
 
-        # Pre-fill form if task exists
-        form.start_point.data = task.start_point if hasattr(task, 'start_point') else ""
-        form.end_point.data = task.end_point if hasattr(task, 'end_point') else ""
+        # Pre-fill form if task has location data
+        if hasattr(task, 'start_point'):
+            form.start_point.data = task.start_point
+        if hasattr(task, 'end_point'):
+            form.end_point.data = task.end_point
 
     # Get available drivers for this company
     drivers = []
@@ -162,12 +168,17 @@ def create_route():
     form.driver_id.choices = drivers
 
     # If task_id provided, get tasks for dropdown
-    if hasattr(form, 'task_id') and not task_id and company_id:
+    if hasattr(form, 'task_id') and company_id:
         tasks = Task.query.filter_by(company_id=company_id).filter(
             Task.status.in_([TaskStatus.NEW, TaskStatus.IN_PROGRESS])
         ).all()
-        form.task_id.choices = [(t.id, t.title) for t in tasks]
-        form.task_id.choices.insert(0, (0, 'No task'))
+        task_choices = [(t.id, f'{t.id} - {t.title}') for t in tasks]
+        task_choices.insert(0, (0, 'No task'))
+        form.task_id.choices = task_choices
+
+        # Set selected task if provided
+        if task_id:
+            form.task_id.data = task_id
 
     if form.validate_on_submit():
         try:
@@ -180,10 +191,12 @@ def create_route():
                     # If not valid JSON, keep as None
                     pass
 
-            # Convert task_id=0 to None (Fix for foreign key constraint)
+            # Get task_id either from form or URL parameter
             processed_task_id = None
             if hasattr(form, 'task_id') and form.task_id.data and form.task_id.data != 0:
                 processed_task_id = form.task_id.data
+            elif task_id:  # Use task_id from URL if form doesn't have it
+                processed_task_id = task_id
 
             # Create route directly instead of using RouteService
             route = Route(
@@ -194,7 +207,7 @@ def create_route():
                 start_time=form.start_time.data,
                 status=RouteStatus.PLANNED,
                 driver_id=form.driver_id.data,
-                task_id=processed_task_id,  # Using processed task_id instead of the raw form value
+                task_id=processed_task_id,  # Using processed task_id here
                 company_id=company_id,
                 waypoints=waypoints,
             )
@@ -760,6 +773,9 @@ def _can_delete_route(route):
         return True
 
     if current_user.role == UserRole.MANAGER and current_user.manager and route.company_id == current_user.manager.company_id:
+        return True
+
+    if current_user.role == UserRole.OPERATOR and current_user.operator and route.company_id == current_user.operator.company_id:
         return True
 
     return False

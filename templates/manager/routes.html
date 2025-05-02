@@ -1,0 +1,549 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-user-tie"></i> Manager Panel
+            </div>
+            <div class="list-group list-group-flush">
+                <a href="{{ url_for('main.manager_dashboard') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a href="{{ url_for('main.manager_operators') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-users"></i> My Operators
+                </a>
+                <a href="{{ url_for('main.manager_tasks') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-tasks"></i> Tasks
+                </a>
+                <a href="{{ url_for('statistics.dashboard') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-chart-line"></i> Statistics
+                </a>
+                <a href="{{ url_for('main.manager_routes') }}" class="list-group-item list-group-item-action active">
+                    <i class="fas fa-route"></i> Routes
+                </a>
+                <a href="{{ url_for('main.manager_reports') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-file-alt"></i> Reports
+                </a>
+                <a href="{{ url_for('messages.inbox') }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-comments"></i> Messages
+                </a>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Route Filters</h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('main.manager_routes') }}">
+                    <div class="mb-3">
+                        <label class="form-label">Search</label>
+                        <input type="text" class="form-control" name="search" value="{{ search_term }}" placeholder="Start or end location...">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="status" id="status_all" value=""
+                                       {% if not status %}checked{% endif %}>
+                                <label class="form-check-label" for="status_all">All</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="status" id="status_planned" value="PLANNED"
+                                       {% if status == 'PLANNED' %}checked{% endif %}>
+                                <label class="form-check-label" for="status_planned">Planned</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="status" id="status_in_progress" value="IN_PROGRESS"
+                                       {% if status == 'IN_PROGRESS' %}checked{% endif %}>
+                                <label class="form-check-label" for="status_in_progress">In Progress</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="status" id="status_completed" value="COMPLETED"
+                                       {% if status == 'COMPLETED' %}checked{% endif %}>
+                                <label class="form-check-label" for="status_completed">Completed</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Driver</label>
+                        <select class="form-select" name="driver_id">
+                            <option value="">All Drivers</option>
+                            {% for driver in drivers %}
+                                <option value="{{ driver.id }}" {% if driver_id == driver.id %}selected{% endif %}>
+                                    {{ driver.user.first_name }} {{ driver.user.last_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Operator</label>
+                        <select class="form-select" name="operator_id">
+                            <option value="">All Operators</option>
+                            {% for operator in operators %}
+                                <option value="{{ operator.id }}" {% if operator_id == operator.id %}selected{% endif %}>
+                                    {{ operator.user.first_name }} {{ operator.user.last_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Date Range</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="date" class="form-control" name="date_from" value="{{ date_from }}" placeholder="From">
+                            </div>
+                            <div class="col-6">
+                                <input type="date" class="form-control" name="date_to" value="{{ date_to }}" placeholder="To">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-filter"></i> Apply Filters
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Routes Management</h5>
+                <a href="{{ url_for('routes.create_route') }}" class="btn btn-light btn-sm">
+                    <i class="fas fa-plus"></i> Create Route
+                </a>
+            </div>
+            <div class="card-body p-0" style="min-height: 350px; max-height: 700px; overflow-y: auto;">
+                {% if routes and routes.items %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Start Point</th>
+                                <th>End Point</th>
+                                <th>Related Task</th>
+                                <th>Driver</th>
+                                <th>Operator</th>
+                                <th>Status</th>
+                                <th>Start Time</th>
+                                <th>Distance</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for route in routes.items %}
+                            <tr>
+                                <td>
+                                    {% if route.start_point and 'maps.app.goo.gl' in route.start_point %}
+                                        <a href="{{ route.start_point }}" target="_blank" class="text-primary"><i class="fas fa-map-marker-alt me-1"></i> View in Map</a>
+                                    {% else %}
+                                        {{ route.start_point }}
+                                        <a href="https://www.google.com/maps/search/?api=1&query={{ route.start_point|urlencode }}" target="_blank" class="ms-1 text-primary" title="Open in Google Maps">
+                                            <i class="fas fa-map-marker-alt"></i>
+                                        </a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.end_point and 'maps.app.goo.gl' in route.end_point %}
+                                        <a href="{{ route.end_point }}" target="_blank" class="text-primary"><i class="fas fa-map-marker-alt me-1"></i> View in Map</a>
+                                    {% else %}
+                                        {{ route.end_point }}
+                                        <a href="https://www.google.com/maps/search/?api=1&query={{ route.end_point|urlencode }}" target="_blank" class="ms-1 text-primary" title="Open in Google Maps">
+                                            <i class="fas fa-map-marker-alt"></i>
+                                        </a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.task %}
+                                        <a href="{{ url_for('tasks.view_task', task_id=route.task.id) }}" class="badge bg-info text-decoration-none">
+                                            <i class="fas fa-tasks me-1"></i>{{ route.task.title|truncate(30) }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">No task</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.driver and route.driver.user %}
+                                        <a href="#" class="d-flex align-items-center text-decoration-none">
+                                            {% if route.driver.user.profile_image %}
+                                                <img src="{{ url_for('static', filename=route.driver.user.profile_image) }}" alt="Profile image" class="rounded-circle me-1" style="width: 24px; height: 24px;">
+                                            {% else %}
+                                                <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center me-1" style="width: 24px; height: 24px;">
+                                                    <span class="text-white" style="font-size: 10px;">{{ route.driver.user.first_name[0] }}{{ route.driver.user.last_name[0] }}</span>
+                                                </div>
+                                            {% endif %}
+                                            <span>{{ route.driver.user.first_name }} {{ route.driver.user.last_name }}</span>
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">Unassigned</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                        {% if route.driver and route.driver.operator and route.driver.operator.user %}
+                                        <span>{{ route.driver.operator.user.first_name }} {{ route.driver.operator.user.last_name }}</span>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.status.value == 'PLANNED' %}
+                                        <span class="badge bg-primary">Planned</span>
+                                    {% elif route.status.value == 'IN_PROGRESS' %}
+                                        <span class="badge bg-warning">In Progress</span>
+                                    {% elif route.status.value == 'COMPLETED' %}
+                                        <span class="badge bg-success">Completed</span>
+                                    {% elif route.status.value == 'CANCELLED' %}
+                                        <span class="badge bg-danger">Cancelled</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.start_time %}
+                                        {{ route.start_time.strftime('%b %d, %H:%M') }}
+                                    {% else %}
+                                        <span class="text-muted">Not set</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.distance %}
+                                        {{ route.distance }} km
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="{{ url_for('routes.view_route', route_id=route.id) }}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('routes.edit_route', route_id=route.id) }}" class="btn btn-sm btn-outline-secondary" title="Edit Route">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <form action="{{ url_for('routes.delete_route', route_id=route.id) }}" method="POST" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Route" onclick="return confirm('Are you sure you want to delete this route?')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if routes.pages > 1 %}
+                <nav aria-label="Route pagination" class="p-3">
+                    <ul class="pagination justify-content-center mb-0">
+                        {% if routes.has_prev %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('main.manager_routes', page=routes.prev_num, status=status, driver_id=driver_id, operator_id=operator_id, search=search_term, date_from=date_from, date_to=date_to) }}">
+                                    Previous
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Previous</span>
+                            </li>
+                        {% endif %}
+
+                        {% for page_num in routes.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page_num %}
+                                {% if page_num == routes.page %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ page_num }}</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('main.manager_routes', page=page_num, status=status, driver_id=driver_id, operator_id=operator_id, search=search_term, date_from=date_from, date_to=date_to) }}">
+                                            {{ page_num }}
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if routes.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('main.manager_routes', page=routes.next_num, status=status, driver_id=driver_id, operator_id=operator_id, search=search_term, date_from=date_from, date_to=date_to) }}">
+                                    Next
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">Next</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+
+                {% else %}
+                <div class="text-center py-5">
+                    <div class="display-1 text-muted mb-3">
+                        <i class="fas fa-route"></i>
+                    </div>
+                    <h4 class="text-muted mb-3">No routes found</h4>
+                    <p class="text-muted">
+                        {% if search_term or status or driver_id or operator_id or date_from or date_to %}
+                            No routes matching your filters
+                            <a href="{{ url_for('main.manager_routes') }}" class="btn btn-outline-primary mt-2">
+                                <i class="fas fa-times"></i> Clear Filters
+                            </a>
+                        {% else %}
+                            Get started by creating a new route
+                            <a href="{{ url_for('routes.create_route') }}" class="btn btn-primary mt-2">
+                                <i class="fas fa-plus"></i> Create Route
+                            </a>
+                        {% endif %}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Route Status Overview</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="routeStatusChart" width="400" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Active Routes</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        {% if active_routes %}
+                        <div class="list-group list-group-flush">
+                            {% for route in active_routes %}
+                            <a href="{{ url_for('routes.view_route', route_id=route.id) }}" class="list-group-item list-group-item-action">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-0">
+                                            {{ route.start_point }} to {{ route.end_point }}
+                                            {% if 'maps.app.goo.gl' in route.start_point and 'maps.app.goo.gl' in route.end_point %}
+                                                <a href="https://www.google.com/maps/dir/?api=1&origin={{ route.start_point }}&destination={{ route.end_point }}" target="_blank" class="ms-1 text-primary">
+                                                    <i class="fas fa-directions me-1"></i> View in Map
+                                                </a>
+                                            {% else %}
+                                                <a href="https://www.google.com/maps/dir/?api=1&origin={{ route.start_point|urlencode }}&destination={{ route.end_point|urlencode }}" target="_blank" class="ms-1 text-primary" title="Open route in Google Maps">
+                                                    <i class="fas fa-directions"></i>
+                                                </a>
+                                            {% endif %}
+                                        </h6>
+                                        <small>
+                                            {% if route.driver and route.driver.user %}
+                                                Driver: {{ route.driver.user.first_name }} {{ route.driver.user.last_name }}
+                                                {% if route.driver.operator and route.driver.operator.user %}
+                                                    | Operator: {{ route.driver.operator.user.first_name }} {{ route.driver.operator.user.last_name }}
+                                                {% endif %}
+                                            {% else %}
+                                                Unassigned
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-warning mb-1 d-block">In Progress</span>
+                                        <small class="text-muted">
+                                            {% if route.actual_start_time %}
+                                                Started: {{ route.actual_start_time.strftime('%H:%M') }}
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                </div>
+
+                                {% if route.waypoints %}
+                                <div class="mt-2">
+                                    <div class="progress" style="height: 8px;">
+                                        {% set completed_waypoints = route.waypoints|selectattr('completed', 'defined')|selectattr('completed')|list|length %}
+                                        {% set total_waypoints = route.waypoints|length %}
+                                        {% set progress = (completed_waypoints / total_waypoints * 100) if total_waypoints > 0 else 0 %}
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ progress }}%;"
+                                             aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                    <div class="d-flex justify-content-between mt-1">
+                                        <small class="text-muted">Progress</small>
+                                        <small class="text-muted">{{ completed_waypoints }}/{{ total_waypoints }} waypoints</small>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-truck fa-2x text-muted mb-3"></i>
+                            <p class="mb-0">No active routes at the moment</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Upcoming Routes</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if upcoming_routes %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Route</th>
+                                <th>Driver</th>
+                                <th>Operator</th>
+                                <th>Start Time</th>
+                                <th>Distance</th>
+                                <th>Est. Time</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for route in upcoming_routes %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('routes.view_route', route_id=route.id) }}">
+                                        {{ route.start_point }} to {{ route.end_point }}
+                                    </a>
+                                    {% if 'maps.app.goo.gl' in route.start_point and 'maps.app.goo.gl' in route.end_point %}
+                                        <span class="ms-1">|</span>
+                                        <a href="https://www.google.com/maps/dir/?api=1&origin={{ route.start_point }}&destination={{ route.end_point }}" target="_blank" class="ms-1 text-primary">
+                                            <i class="fas fa-directions me-1"></i> View in Map
+                                        </a>
+                                    {% else %}
+                                        <a href="https://www.google.com/maps/dir/?api=1&origin={{ route.start_point|urlencode }}&destination={{ route.end_point|urlencode }}" target="_blank" class="ms-1 text-primary" title="Open route in Google Maps">
+                                            <i class="fas fa-directions"></i>
+                                        </a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.driver and route.driver.user %}
+                                        {{ route.driver.user.first_name }} {{ route.driver.user.last_name }}
+                                    {% else %}
+                                        <span class="text-muted">Unassigned</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.driver and route.driver.operator and route.driver.operator.user %}
+                                        {{ route.driver.operator.user.first_name }} {{ route.driver.operator.user.last_name }}
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.start_time %}
+                                        {{ route.start_time.strftime('%b %d, %H:%M') }}
+                                    {% else %}
+                                        <span class="text-muted">Not set</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.distance %}
+                                        {{ route.distance }} km
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if route.estimated_time %}
+                                        {{ (route.estimated_time // 60) }}h {{ (route.estimated_time % 60) }}m
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('routes.view_route', route_id=route.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('routes.edit_route', route_id=route.id) }}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-calendar fa-2x text-muted mb-3"></i>
+                    <p class="mb-0">No upcoming routes scheduled</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Route Status Chart
+    var ctx = document.getElementById('routeStatusChart').getContext('2d');
+    var routeStatusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Planned', 'In Progress', 'Completed', 'Cancelled'],
+            datasets: [{
+                data: [
+                    {{ route_stats.planned }},
+                    {{ route_stats.in_progress }},
+                    {{ route_stats.completed }},
+                    {{ route_stats.cancelled }}
+                ],
+                backgroundColor: [
+                    '#0d6efd',  // Primary (Planned)
+                    '#ffc107',  // Warning (In Progress)
+                    '#198754',  // Success (Completed)
+                    '#dc3545'   // Danger (Cancelled)
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            var label = context.label || '';
+                            var value = context.raw || 0;
+                            var total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            var percentage = Math.round((value / total) * 100);
+                            return label + ': ' + value + ' (' + percentage + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

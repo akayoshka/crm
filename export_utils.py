@@ -4,10 +4,6 @@ from datetime import datetime
 from flask import send_file
 
 
-# Для полной функциональности Excel и PDF нужно установить:
-# pip install xlsxwriter reportlab
-
-
 def export_to_csv(data, headers, filename):
     """
     Export data to CSV file

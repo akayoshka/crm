@@ -178,9 +178,15 @@
                                         <a href="{{ url_for('tasks.view_task', task_id=task.id) }}" class="btn btn-sm btn-outline-primary" title="View Details">
                                             <i class="fas fa-eye"></i>
                                         </a>
+                                        {% if task.route %}
+                                        <a href="{{ url_for('routes.view_route', route_id=task.route.id) }}" class="btn btn-sm btn-outline-success" title="View Route">
+                                            <i class="fas fa-route"></i>
+                                        </a>
+                                        {% else %}
                                         <a href="{{ url_for('routes.create_route', task_id=task.id) }}" class="btn btn-sm btn-outline-success" title="Create Route">
                                             <i class="fas fa-route"></i>
                                         </a>
+                                        {% endif %}
                                         <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                                             <i class="fas fa-ellipsis-v"></i>
                                         </button>

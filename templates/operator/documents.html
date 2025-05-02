@@ -163,38 +163,15 @@
                                 </td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{{ url_for('documents.view_document', document_id=document.id) }}" class="btn btn-sm btn-outline-primary" title="View Details">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
                                         <a href="{{ url_for('documents.download_document', document_id=document.id) }}" class="btn btn-sm btn-outline-success" title="Download">
                                             <i class="fas fa-download"></i>
                                         </a>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                                            <i class="fas fa-ellipsis-v"></i>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                                                data-bs-target="#deleteDocumentModal"
+                                                data-document-id="{{ document.id }}"
+                                                data-document-title="{{ document.title }}" title="Delete">
+                                            <i class="fas fa-trash"></i>
                                         </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <a class="dropdown-item" href="{{ url_for('documents.edit_document', document_id=document.id) }}">
-                                                    <i class="fas fa-edit"></i> Edit Details
-                                                </a>
-                                            </li>
-                                            {% if document.task_id %}
-                                            <li>
-                                                <a class="dropdown-item" href="{{ url_for('tasks.view_task', task_id=document.task_id) }}">
-                                                    <i class="fas fa-tasks"></i> View Related Task
-                                                </a>
-                                            </li>
-                                            {% endif %}
-                                            <li><hr class="dropdown-divider"></li>
-                                            <li>
-                                                <button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" 
-                                                        data-bs-target="#deleteDocumentModal" 
-                                                        data-document-id="{{ document.id }}" 
-                                                        data-document-title="{{ document.title }}">
-                                                    <i class="fas fa-trash"></i> Delete
-                                                </button>
-                                            </li>
-                                        </ul>
                                     </div>
                                 </td>
                             </tr>

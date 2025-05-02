@@ -124,18 +124,71 @@ class UserService:
             Created user object
         """
         try:
-            user = UserService.create_user(form, db_session, role=UserRole.ADMIN.value, save_changes=False)
+            current_app.logger.info(f"Starting admin creation for username: {form.username.data}")
 
+            # Check for existing username and email before proceeding
+            existing_username = User.query.filter_by(username=form.username.data).first()
+            existing_email = User.query.filter_by(email=form.email.data).first()
+
+            if existing_username:
+                current_app.logger.error(f"Username {form.username.data} already exists")
+                raise ValueError(f"Username {form.username.data} already exists")
+
+            if existing_email:
+                current_app.logger.error(f"Email {form.email.data} already exists")
+                raise ValueError(f"Email {form.email.data} already exists")
+
+            current_app.logger.info("Creating new user with ADMIN role")
+            # Create a user with ADMIN role
+            user = User(
+                username=form.username.data,
+                email=form.email.data,
+                first_name=form.first_name.data,
+                last_name=form.last_name.data,
+                phone=form.phone.data,
+                role=UserRole.ADMIN,  # Use Enum directly, not string value
+                is_active=True
+            )
+
+            current_app.logger.info("Setting password")
+            user.set_password(form.password.data)
+
+            current_app.logger.info("Checking for profile image")
+            # Handle profile image if present
+            if hasattr(form, 'profile_image') and form.profile_image.data:
+                current_app.logger.info("Saving profile image")
+                user.profile_image = save_profile_image(form.profile_image.data)
+
+            current_app.logger.info("Adding user to session")
+            # Add user to session
+            db_session.add(user)
+
+            current_app.logger.info("Flushing session to get user ID")
+            db_session.flush()  # Flush to get the user.id
+
+            current_app.logger.info(f"User created with ID: {user.id}")
+
+            current_app.logger.info(f"Creating admin record with level: {form.admin_level.data}")
+            # Create admin with the obtained user.id
             admin = Admin(id=user.id, admin_level=form.admin_level.data)
+
+            current_app.logger.info("Adding admin to session")
             db_session.add(admin)
 
+            current_app.logger.info("Committing all changes")
+            # Commit all changes
             db_session.commit()
+
+            current_app.logger.info("Logging admin creation action")
             log_action(ActionType.CREATE, f"Created admin {user.username}", db_session)
 
+            current_app.logger.info(f"Admin {user.username} created successfully")
             return user
         except Exception as e:
-            db_session.rollback()
             current_app.logger.error(f"Error creating admin: {str(e)}")
+            current_app.logger.error(f"Exception type: {type(e).__name__}")
+            current_app.logger.error(f"Traceback: {traceback.format_exc()}")
+            db_session.rollback()
             raise
 
     @staticmethod

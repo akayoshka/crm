@@ -1,3 +1,5 @@
+import traceback
+
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from werkzeug.exceptions import NotFound
 from sqlalchemy import or_
@@ -141,16 +143,30 @@ def view_user(user_id):
 @admin.route('/admins/create', methods=['GET', 'POST'])
 @admin_required
 def create_admin():
+    """
+    Create a new administrator user
+    Fixed to explicitly set the role field in the form
+    """
     form = AdminRegistrationForm()
+    current_app.logger.info("Rendering admin creation form")
+
+    # Explicitly set role field for admin
+    form.role.data = UserRole.ADMIN.value
 
     if form.validate_on_submit():
+        current_app.logger.info(f"Form validated, attempting to create admin with username: {form.username.data}")
         try:
+            # Use UserService to create admin
             user = UserService.create_admin(form, db.session)
             flash(f'Admin {user.username} created successfully!', 'success')
             return redirect(url_for('admin.user_list'))
         except Exception as e:
+            error_details = traceback.format_exc()
+            current_app.logger.error(f"Error creating admin: {str(e)}")
+            current_app.logger.error(f"Error details: {error_details}")
             flash(f'Error creating admin: {str(e)}', 'danger')
 
+    # If GET request or form validation failed
     return render_template('admin/create_admin.html', title='Create Admin', form=form)
 
 

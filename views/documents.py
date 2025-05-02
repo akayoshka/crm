@@ -251,8 +251,11 @@ def download_document(document_id):
         return redirect(url_for('documents.list_documents'))
 
     # Get the full path to the file
-    file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], document.file_path.lstrip('uploads/'))
-
+    if document.file_path.startswith('uploads/'):
+        relative_path = document.file_path[len('uploads/'):]
+    else:
+        relative_path = document.file_path
+    file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], relative_path)
     if not os.path.exists(file_path):
         flash('Document file not found. Please contact an administrator.', 'danger')
         return redirect(url_for('documents.view_document', document_id=document_id))
@@ -291,7 +294,19 @@ def delete_document(document_id):
         # Get the task ID and route ID for redirect after delete
         task_id = document.task_id
         route_id = document.route_id
-        category = document.document_category.value if document.document_category else None
+
+        # Fix: handle document_category properly whether it's a string or enum
+        category = None
+        if document.document_category:
+            # If it's already a string, use it directly
+            if isinstance(document.document_category, str):
+                category = document.document_category
+            # If it's an enum, get its value
+            elif hasattr(document.document_category, 'value'):
+                category = document.document_category.value
+            # If it can be cast to string, do that
+            else:
+                category = str(document.document_category)
 
         # Log deletion attempt
         current_app.logger.info(

@@ -140,8 +140,14 @@ class ChangePasswordForm(FlaskForm):
 
 
 class AdminRegistrationForm(UserForm):
+    """Form for admin user registration with default role set to ADMIN"""
     admin_level = IntegerField('Admin Level', default=1, validators=[DataRequired()])
     submit = SubmitField('Create Admin')
+
+    def __init__(self, *args, **kwargs):
+        super(AdminRegistrationForm, self).__init__(*args, **kwargs)
+        # Set default value for role field
+        self.role.data = UserRole.ADMIN.value
 
 
 class CompanyForm(FlaskForm):

@@ -289,11 +289,11 @@ def request_operator():
     company_id = current_user.manager.company_id
 
     # Get form data
-    first_name = request.form.get("FIRST_NAME")
-    last_name = request.form.get("LAST_NAME")
-    email = request.form.get("EMAIL")
-    phone = request.form.get("PHONE")
-    justification = request.form.get("JUSTIFICATION")
+    first_name = request.form.get("first_name")
+    last_name = request.form.get("last_name")
+    email = request.form.get("email")
+    phone = request.form.get("phone")
+    justification = request.form.get("justification")
 
     if not first_name or not last_name or not email or not justification:
         flash('Please fill out all required fields.', "DANGER")
@@ -302,6 +302,9 @@ def request_operator():
     try:
         # Find company owner
         company_owner = CompanyOwner.query.filter_by(company_id=company_id).first()
+
+        # Include manager ID explicitly in the message for easy extraction when approving
+        manager_id = current_user.manager.id
 
         if not company_owner or not company_owner.user:
             # If no owner found, notify admin
@@ -313,7 +316,11 @@ def request_operator():
                     content=f"Manager {current_user.first_name} {current_user.last_name} requests a new operator account:\n\n"
                             f"Name: {first_name} {last_name}\n"
                             f"Email: {email}\n"
-                            f"Phone: {phone or 'Not provided'}\n\n"
+                            f"Phone: {phone or 'Not provided'}\n"
+                            f"Position: Operator\n"
+                            f"Manager ID: {manager_id}\n"  # Add manager ID explicitly
+                            f"Manager: {current_user.first_name} {current_user.last_name}\n"
+                            f"Manager Email: {current_user.email}\n\n"
                             f"Justification: {justification}",
                     sender_id=current_user.id,
                     recipient_id=admin.id,
@@ -336,6 +343,7 @@ def request_operator():
                         f"Email: {email}\n"
                         f"Phone: {phone or 'Not provided'}\n"
                         f"Position: Operator\n"
+                        f"Manager ID: {manager_id}\n"  # Add manager ID explicitly
                         f"Manager: {current_user.first_name} {current_user.last_name}\n"
                         f"Manager Email: {current_user.email}\n\n"
                         f"Justification: {justification}",
@@ -1183,4 +1191,133 @@ def driver_dashboard():
         operator=operator,
         recent_messages=recent_messages,
         now=now
+    )
+
+
+@main.route('/dashboard/manager/routes')
+@login_required
+@role_required(UserRole.MANAGER.value)
+def manager_routes():
+    """
+    Show routes for all operators and drivers under this manager
+    """
+    if not current_user.manager or not current_user.manager.company_id:
+        flash('You are not associated with a company.', 'danger')
+        return redirect(url_for('main.index'))
+
+    page = request.args.get('page', 1, type=int)
+    status = request.args.get('status', None)
+    driver_id = request.args.get('driver_id', None, type=int)
+    operator_id = request.args.get('operator_id', None, type=int)
+    date_from = request.args.get('date_from', None)
+    date_to = request.args.get('date_to', None)
+    search_term = request.args.get('search', '')
+
+    # Get operator IDs for this manager
+    operator_ids = [op.id for op in Operator.query.filter_by(manager_id=current_user.manager.id).all()]
+
+    # Get driver IDs for all operators under this manager
+    driver_query = Driver.query.filter(Driver.operator_id.in_(operator_ids) if operator_ids else False)
+    all_driver_ids = [d.id for d in driver_query.all()]
+
+    # Build route query - include routes for all drivers under this manager's operators
+    route_query = Route.query.filter(Route.driver_id.in_(all_driver_ids) if all_driver_ids else False)
+
+    # Apply status filter
+    if status:
+        try:
+            route_status = RouteStatus(status)
+            route_query = route_query.filter(Route.status == route_status)
+        except ValueError:
+            # Invalid status, ignore filter
+            pass
+
+    # Apply driver filter
+    if driver_id:
+        route_query = route_query.filter(Route.driver_id == driver_id)
+
+    # Apply operator filter - find all drivers under this operator
+    if operator_id:
+        operator_driver_ids = [d.id for d in Driver.query.filter_by(operator_id=operator_id).all()]
+        route_query = route_query.filter(Route.driver_id.in_(operator_driver_ids) if operator_driver_ids else False)
+
+    # Apply date range filters
+    if date_from:
+        try:
+            from_date = datetime.strptime(date_from, '%Y-%m-%d')
+            route_query = route_query.filter(Route.start_time >= from_date)
+        except ValueError:
+            # Invalid date format, ignore filter
+            pass
+
+    if date_to:
+        try:
+            to_date = datetime.strptime(date_to, '%Y-%m-%d')
+            # Set to end of day
+            to_date = to_date.replace(hour=23, minute=59, second=59)
+            route_query = route_query.filter(Route.start_time <= to_date)
+        except ValueError:
+            # Invalid date format, ignore filter
+            pass
+
+    # Apply search filter
+    if search_term:
+        route_query = route_query.filter(
+            or_(
+                Route.start_point.ilike(f'%{search_term}%'),
+                Route.end_point.ilike(f'%{search_term}%')
+            )
+        )
+
+    # Order by start time
+    route_query = route_query.order_by(Route.start_time.desc())
+
+    # Paginate results
+    routes = route_query.paginate(page=page, per_page=10)
+
+    # Get all drivers for filter dropdown - only drivers under this manager's operators
+    drivers = driver_query.all()
+
+    # Get all operators for filter dropdown
+    operators = Operator.query.filter_by(manager_id=current_user.manager.id).all()
+
+    # Get route stats for all drivers under this manager
+    all_routes = Route.query.filter(Route.driver_id.in_(all_driver_ids) if all_driver_ids else False).all()
+
+    route_stats = {
+        'planned': sum(1 for r in all_routes if r.status == RouteStatus.PLANNED),
+        'in_progress': sum(1 for r in all_routes if r.status == RouteStatus.IN_PROGRESS),
+        'completed': sum(1 for r in all_routes if r.status == RouteStatus.COMPLETED),
+        'cancelled': sum(1 for r in all_routes if r.status == RouteStatus.CANCELLED)
+    }
+
+    # Get active routes
+    active_routes = Route.query.filter(
+        Route.driver_id.in_(all_driver_ids) if all_driver_ids else False,
+        Route.status == RouteStatus.IN_PROGRESS
+    ).order_by(Route.start_time).all()
+
+    # Get upcoming routes
+    upcoming_routes = Route.query.filter(
+        Route.driver_id.in_(all_driver_ids) if all_driver_ids else False,
+        Route.status == RouteStatus.PLANNED
+    ).order_by(Route.start_time).limit(5).all()
+
+    log_action(ActionType.VIEW, "Viewed routes list", db)
+
+    return render_template(
+        'manager/routes.html',
+        title='Routes Management',
+        routes=routes,
+        status=status,
+        driver_id=driver_id,
+        operator_id=operator_id,
+        drivers=drivers,
+        operators=operators,
+        date_from=date_from,
+        date_to=date_to,
+        search_term=search_term,
+        route_stats=route_stats,
+        active_routes=active_routes,
+        upcoming_routes=upcoming_routes
     )
